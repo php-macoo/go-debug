@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebSocket 聊天室 Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 720px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    #status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ef4444;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+
+    #status-dot.connected { background: #22c55e; }
+
+    #status-text {
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    #chat-box {
+      width: 100%;
+      max-width: 720px;
+      flex: 1;
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      overflow-y: auto;
+      height: 460px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 1px solid #334155;
+    }
+
+    .msg {
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      word-break: break-all;
+      max-width: 85%;
+    }
+
+    .msg.system {
+      background: #1a2e1a;
+      color: #86efac;
+      font-style: italic;
+      align-self: center;
+      max-width: 100%;
+      text-align: center;
+      font-size: 0.8rem;
+    }
+
+    .msg.self {
+      background: #1d4ed8;
+      color: #eff6ff;
+      align-self: flex-end;
+    }
+
+    .msg.other {
+      background: #334155;
+      color: #e2e8f0;
+      align-self: flex-start;
+    }
+
+    #input-area {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    #msg-input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #msg-input:focus { border-color: #3b82f6; }
+    #msg-input::placeholder { color: #64748b; }
+
+    #send-btn {
+      padding: 12px 24px;
+      border-radius: 8px;
+      border: none;
+      background: #3b82f6;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #send-btn:hover { background: #2563eb; }
+    #send-btn:disabled { background: #475569; cursor: not-allowed; }
+
+    #connect-btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    #connect-btn:hover { background: #334155; color: #e2e8f0; }
+
+    footer {
+      margin-top: 16px;
+      font-size: 0.75rem;
+      color: #475569;
+    }
+
+    footer code {
+      color: #7dd3fc;
+      background: #0f172a;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span id="status-dot"></span>
+    <h1>WebSocket 聊天室 Demo</h1>
+    <span id="status-text">未连接</span>
+    <button id="connect-btn" onclick="toggleConnect()">连接</button>
+  </header>
+
+  <div id="chat-box"></div>
+
+  <div id="input-area">
+    <input
+      id="msg-input"
+      type="text"
+      placeholder="输入消息，按 Enter 发送..."
+      disabled
+      onkeydown="if(event.key==='Enter') sendMsg()"
+    />
+    <button id="send-btn" onclick="sendMsg()" disabled>发送</button>
+  </div>
+
+  <footer>
+    接入点: <code>ws://localhost:8080/ws</code> &nbsp;|&nbsp; go-debug / websocket demo
+  </footer>
+
+  <script>
+    let ws = null;
+    let myId = null;
+
+    const chatBox = document.getElementById('chat-box');
+    const msgInput = document.getElementById('msg-input');
+    const sendBtn = document.getElementById('send-btn');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const connectBtn = document.getElementById('connect-btn');
+
+    function appendMsg(text, type) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + type;
+      div.textContent = text;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function setConnected(connected) {
+      statusDot.className = connected ? 'connected' : '';
+      statusText.textContent = connected ? '已连接' : '未连接';
+      connectBtn.textContent = connected ? '断开' : '连接';
+      msgInput.disabled = !connected;
+      sendBtn.disabled = !connected;
+      if (connected) msgInput.focus();
+    }
+
+    function toggleConnect() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      } else {
+        connect();
+      }
+    }
+
+    function connect() {
+      ws = new WebSocket('ws://' + location.host + '/ws');
+
+      ws.onopen = () => {
+        setConnected(true);
+        appendMsg('已连接到服务器', 'system');
+      };
+
+      ws.onmessage = (e) => {
+        const lines = e.data.split('\n');
+        lines.forEach(line => {
+          if (!line) return;
+          // 系统消息
+          if (line.startsWith('系统:')) {
+            // 从系统消息里尝试解析自己的 ID（加入时第一条系统消息包含自己的 ID）
+            if (!myId) {
+              const m = line.match(/^系统: (.+) 加入了聊天室$/);
+              if (m) myId = m[1];
+            }
+            appendMsg(line, 'system');
+          } else if (myId && line.startsWith(myId + ':')) {
+            appendMsg(line, 'self');
+          } else {
+            appendMsg(line, 'other');
+          }
+        });
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        appendMsg('连接已断开', 'system');
+        ws = null;
+        myId = null;
+      };
+
+      ws.onerror = () => {
+        appendMsg('连接出错，请检查服务是否启动', 'system');
+      };
+    }
+
+    function sendMsg() {
+      const text = msgInput.value.trim();
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(text);
+      msgInput.value = '';
+    }
+  </script>
+</body>
+</html>
