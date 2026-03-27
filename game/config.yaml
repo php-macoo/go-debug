@@ -1,0 +1,16 @@
+server:
+  addr: ":8082"
+  static_dir: "game/static"
+
+database:
+  host: "127.0.0.1"
+  port: "3308"
+  user: "root"
+  password: "root123456"
+  name: "game_db"
+  max_open_conns: 20
+  max_idle_conns: 5
+
+auth:
+  token_secret: "three-match-game-secret-2026"
+  token_expire_days: 7

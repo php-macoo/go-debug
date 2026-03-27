@@ -1,0 +1,50 @@
+---
+description: Go 后端开发规范（分层、ORM、API 命名）
+globs: game/**/*.go
+alwaysApply: false
+---
+
+# Go 后端规范
+
+## 代码分层
+
+```
+config/   → 配置结构 + 加载
+model/    → GORM 模型定义（领域对象）
+dao/      → 数据访问层（仅 GORM 操作，不含业务逻辑）
+service/  → 业务逻辑层（调用 DAO，不依赖 HTTP）
+handler/  → HTTP 处理层（调用 Service，处理请求/响应）
+```
+
+依赖方向: handler → service → dao → model，禁止反向依赖。
+
+## ORM
+
+- 使用 **GORM** 操作数据库，禁止在 dao 层之外写原始 SQL
+- Model 放 `model/` 包，同时携带 `gorm` 和 `json` 标签
+- 建表/迁移统一通过 `db.AutoMigrate()` 完成
+
+```go
+type User struct {
+    ID       int64  `gorm:"primaryKey;autoIncrement" json:"id"`
+    Phone    string `gorm:"uniqueIndex;type:varchar(20);not null" json:"phone"`
+    Username string `gorm:"type:varchar(50);not null" json:"username"`
+}
+```
+
+## API JSON 字段命名
+
+前后端交互 JSON 字段统一 **小驼峰**（camelCase）:
+
+```go
+// ✅ GOOD
+CompletionTimeMs int `json:"completionTimeMs"`
+
+// ❌ BAD
+CompletionTimeMs int `json:"completion_time_ms"`
+```
+
+## 配置
+
+- 使用 YAML 配置文件（`config.yaml`）
+- 敏感信息（密码、密钥）不硬编码在代码中

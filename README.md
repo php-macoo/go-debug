@@ -13,6 +13,10 @@ go-debug/
 │   │   └── client.go   # Client：读写泵 + ping/pong
 │   └── static/
 │       └── index.html  # 浏览器聊天室页面
+├── game/               # 三消达人：类羊了个羊卡牌消除小游戏
+│   ├── main.go         # 入口：HTTP 静态文件服务
+│   └── static/
+│       └── index.html  # 单文件游戏（HTML+CSS+JS）
 ├── http/               # (待扩展) HTTP 工具 Demo
 ├── grpc/               # (待扩展) gRPC Demo
 └── tools/              # (待扩展) 各类工具脚本
@@ -52,3 +56,21 @@ Browser ──ws──► Client.readPump  ──► Hub.broadcast ──► 所
 | `Client` | 封装单条 WebSocket 连接；独立 goroutine 读写 |
 | `readPump` | 从浏览器读消息 → 投递 Hub |
 | `writePump` | 从 Hub 收消息 → 写回浏览器；发 Ping 心跳 |
+
+## 三消达人
+
+### 功能
+
+- 类「羊了个羊」的卡牌消除玩法：点击卡牌放入暂存槽，凑齐 3 张相同即消除
+- 3 层叠放卡牌，被遮挡的卡牌不可点击
+- 12 种水果图案，共 36 张卡牌
+- 道具系统：撤回（×3）、洗牌（×1）、移出（×1）
+- 音效反馈（Web Audio API，无外部依赖）
+- 胜利彩带动画 & 计时器
+
+### 运行
+
+```bash
+go run ./game/
+open http://localhost:8082
+```
