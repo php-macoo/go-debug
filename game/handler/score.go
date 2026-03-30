@@ -1,45 +1,50 @@
 package handler
 
 import (
-	"encoding/json"
-	"net/http"
+	"go-debug/game/middleware"
+	"go-debug/game/pkg/resp"
+	"go-debug/game/service"
+
+	"github.com/gin-gonic/gin"
 )
 
-func (h *Handler) SubmitScore(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeFail(w, 405, -1, "method not allowed")
-		return
-	}
-	uid, err := h.authUID(r)
-	if err != nil {
-		writeFail(w, 401, -1, "未登录")
-		return
-	}
-	var req struct {
-		TimeMs int `json:"completionTimeMs"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TimeMs <= 0 {
-		writeFail(w, 400, -1, "无效的完成时间")
-		return
-	}
-
-	rank, err := h.Score.Submit(uid, req.TimeMs, r.UserAgent(), clientIP(r))
-	if err != nil {
-		writeFail(w, 500, -1, "提交失败")
-		return
-	}
-	writeOK(w, map[string]interface{}{"rank": rank})
+// ScoreHandler 处理游戏成绩相关的 HTTP 请求（提交成绩/排行榜）。
+type ScoreHandler struct {
+	scoreSvc *service.ScoreService
 }
 
-func (h *Handler) Leaderboard(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeFail(w, 405, -1, "method not allowed")
+// NewScoreHandler 创建 ScoreHandler，注入 ScoreService。
+func NewScoreHandler(scoreSvc *service.ScoreService) *ScoreHandler {
+	return &ScoreHandler{scoreSvc: scoreSvc}
+}
+
+// Submit 提交游戏成绩（需认证中间件）。
+// POST /api/score  Body: {"completionTimeMs":12345}
+func (h *ScoreHandler) Submit(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	var req struct {
+		TimeMs int `json:"completionTimeMs" binding:"required,gt=0"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Fail400(c, "无效的完成时间")
 		return
 	}
-	list, err := h.Score.Leaderboard()
+
+	rank, err := h.scoreSvc.Submit(uid, req.TimeMs, c.Request.UserAgent(), c.ClientIP())
 	if err != nil {
-		writeFail(w, 500, -1, "查询失败")
+		resp.Fail500(c, "提交失败")
 		return
 	}
-	writeOK(w, map[string]interface{}{"list": list})
+	resp.OK(c, gin.H{"rank": rank})
+}
+
+// Leaderboard 获取 Top 10 排行榜（需认证中间件）。
+// GET /api/leaderboard  Header: Authorization: Bearer <token>
+func (h *ScoreHandler) Leaderboard(c *gin.Context) {
+	list, err := h.scoreSvc.Leaderboard()
+	if err != nil {
+		resp.Fail500(c, "查询失败")
+		return
+	}
+	resp.OK(c, gin.H{"list": list})
 }

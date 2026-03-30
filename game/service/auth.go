@@ -1,3 +1,4 @@
+// Package service 是业务逻辑层，编排 DAO 调用，不依赖 HTTP 层。
 package service
 
 import (
@@ -15,20 +16,25 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// AuthService 负责 token 签发/验证和密码哈希。
+// token 格式: base64url(payload).hex(hmac-sha256)，轻量级自定义 JWT。
 type AuthService struct {
 	secret     string
 	expireDays int
 }
 
+// NewAuthService 根据配置创建 AuthService。
 func NewAuthService(cfg config.AuthConfig) *AuthService {
 	return &AuthService{secret: cfg.TokenSecret, expireDays: cfg.TokenExpireDays}
 }
 
+// tokenPayload 是 token 中携带的数据。
 type tokenPayload struct {
 	UID int64 `json:"uid"`
 	Exp int64 `json:"exp"`
 }
 
+// GenerateToken 为指定用户 ID 签发一个带有效期的 token。
 func (s *AuthService) GenerateToken(uid int64) string {
 	p := tokenPayload{
 		UID: uid,
@@ -42,6 +48,7 @@ func (s *AuthService) GenerateToken(uid int64) string {
 	return encoded + "." + sig
 }
 
+// ValidateToken 验证 token 的签名和有效期，返回用户 ID。
 func (s *AuthService) ValidateToken(token string) (int64, error) {
 	parts := strings.SplitN(token, ".", 2)
 	if len(parts) != 2 {
@@ -67,6 +74,7 @@ func (s *AuthService) ValidateToken(token string) (int64, error) {
 	return p.UID, nil
 }
 
+// HashPassword 使用 bcrypt 对明文密码进行哈希。
 func (s *AuthService) HashPassword(pwd string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
 	if err != nil {
@@ -75,6 +83,7 @@ func (s *AuthService) HashPassword(pwd string) (string, error) {
 	return string(hash), nil
 }
 
+// CheckPassword 校验明文密码是否与 bcrypt 哈希匹配。
 func (s *AuthService) CheckPassword(hashed, pwd string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(pwd))
 }

@@ -6,18 +6,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// ScoreDAO 封装成绩表的数据库操作。
 type ScoreDAO struct {
 	db *gorm.DB
 }
 
+// NewScoreDAO 创建 ScoreDAO 实例。
 func NewScoreDAO(db *gorm.DB) *ScoreDAO {
 	return &ScoreDAO{db: db}
 }
 
+// Create 插入一条成绩记录。
 func (d *ScoreDAO) Create(score *model.Score) error {
 	return d.db.Create(score).Error
 }
 
+// GetRank 计算给定完成时间在所有玩家最佳成绩中的排名（1-based）。
 func (d *ScoreDAO) GetRank(timeMs int) (int, error) {
 	var rank int64
 	err := d.db.Raw(`
@@ -30,6 +34,7 @@ func (d *ScoreDAO) GetRank(timeMs int) (int, error) {
 	return int(rank), nil
 }
 
+// TopN 获取排行榜前 n 名，按每位玩家最佳成绩升序排列。
 func (d *ScoreDAO) TopN(n int) ([]model.LeaderboardEntry, error) {
 	var list []model.LeaderboardEntry
 	err := d.db.Raw(`

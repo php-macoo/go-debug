@@ -74,6 +74,103 @@
             white-space: nowrap;
         }
 
+        /* ─── Avatar & Dropdown ─── */
+        .avatar-wrapper { position: relative; }
+        .avatar-btn {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.25);
+            background: linear-gradient(135deg, #f7971e, #ffd200);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; cursor: pointer;
+            overflow: hidden; transition: border-color 0.2s;
+            padding: 0; color: #1a1a2e; font-weight: 700;
+        }
+        .avatar-btn:hover { border-color: rgba(255,255,255,0.6); }
+        .avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-dropdown {
+            display: none;
+            position: absolute;
+            top: 44px; right: 0;
+            background: linear-gradient(145deg, #2d2b55, #1e1b3a);
+            border: 1.5px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            min-width: 180px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            z-index: 500;
+            overflow: hidden;
+            animation: dropIn 0.2s ease;
+        }
+        .avatar-dropdown.show { display: block; }
+        @keyframes dropIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+        .dd-header {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .dd-name { color: #fff; font-size: 14px; font-weight: 600; }
+        .dd-phone { color: rgba(255,255,255,0.4); font-size: 12px; margin-top: 2px; }
+        .dd-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 11px 16px; cursor: pointer;
+            color: rgba(255,255,255,0.8); font-size: 13px;
+            transition: background 0.15s;
+        }
+        .dd-item:hover { background: rgba(255,255,255,0.08); }
+        .dd-item .dd-icon { font-size: 16px; width: 20px; text-align: center; }
+        .dd-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 2px 0; }
+        .dd-item.danger { color: #ff6b6b; }
+        .dd-item.danger:hover { background: rgba(255,107,107,0.1); }
+
+        /* ─── Profile Modal ─── */
+        .profile-avatar-lg {
+            width: 72px; height: 72px;
+            border-radius: 50%;
+            margin: 0 auto 12px;
+            background: linear-gradient(135deg, #f7971e, #ffd200);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px; color: #1a1a2e; font-weight: 700;
+            overflow: hidden; position: relative; cursor: pointer;
+            border: 3px solid rgba(255,255,255,0.15);
+        }
+        .profile-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-avatar-lg:hover::after {
+            content: '📷'; position: absolute; inset: 0;
+            background: rgba(0,0,0,0.5); display: flex;
+            align-items: center; justify-content: center; font-size: 24px;
+            border-radius: 50%;
+        }
+
+        /* ─── Avatar Picker ─── */
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            margin: 16px 0;
+        }
+        .emoji-opt {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.06);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.15s;
+        }
+        .emoji-opt:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+        .emoji-opt.selected { border-color: #ffd200; background: rgba(255,215,0,0.15); }
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.15);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+            color: rgba(255,255,255,0.4);
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            margin-top: 12px;
+        }
+        .upload-zone:hover { border-color: rgba(255,255,255,0.3); }
+
         /* ─── Board ─── */
         .board-wrapper {
             flex: 1;
@@ -467,6 +564,40 @@
     </div>
 </div>
 
+<!-- ────── Profile Modal ────── -->
+<div class="overlay" id="profileOverlay">
+    <div class="overlay-box">
+        <button class="close-x" onclick="closeProfile()">&times;</button>
+        <h2>个人资料</h2>
+        <div class="profile-avatar-lg" id="profileAvatar" onclick="showAvatarPicker()"></div>
+        <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-bottom:16px">点击头像可更换</p>
+        <div class="form-group">
+            <input class="form-input" type="text" id="profileNameInput" placeholder="用户名" maxlength="20">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <input class="form-input" type="text" id="profilePhoneDisplay" disabled style="opacity:0.5">
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:18px" onclick="saveProfile()">保存</button>
+    </div>
+</div>
+
+<!-- ────── Avatar Picker Modal ────── -->
+<div class="overlay" id="avatarOverlay">
+    <div class="overlay-box">
+        <button class="close-x" onclick="closeAvatarPicker()">&times;</button>
+        <h2>选择头像</h2>
+        <p style="margin-bottom:4px">选一个你喜欢的表情</p>
+        <div class="emoji-grid" id="emojiGrid"></div>
+        <div class="dd-divider" style="margin:8px 0"></div>
+        <p style="margin-bottom:4px;color:rgba(255,255,255,0.5);font-size:13px">或上传自定义头像</p>
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('avatarFileInput').click()">
+            📁 点击选择图片（最大 2MB）
+        </div>
+        <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="uploadAvatarFile(this)">
+        <button class="btn btn-primary" style="width:100%;margin-top:16px" id="emojiConfirmBtn" onclick="confirmEmojiAvatar()">确认选择</button>
+    </div>
+</div>
+
 <!-- ────── Leaderboard Modal ────── -->
 <div class="overlay" id="lbOverlay">
     <div class="overlay-box" style="padding-bottom:24px">
@@ -540,19 +671,120 @@ async function checkAuth(){
     updateUserArea();
 }
 
+const AVATAR_EMOJIS=['😀','😎','🤩','🥳','😺','🐶','🐱','🦊','🐻','🐼','🐨','🦁','🐯','🐸','🐵','🦄','🐲','🌟','🔥','💎','🎮','🎯','👾','🤖'];
+let ddOpen=false, selectedEmoji='';
+
+function getAvatarDisplay(user, size){
+    if(!user) return '';
+    const s = size||'sm';
+    if(user.avatar && user.avatar.startsWith('/')) return `<img src="${user.avatar}" alt="">`;
+    if(user.avatar && user.avatar.length<=4) return user.avatar;
+    return user.username ? user.username.charAt(0).toUpperCase() : '?';
+}
+
 function updateUserArea(){
     const el=document.getElementById('userArea');
     if(currentUser){
-        el.innerHTML=`<span class="user-name">${currentUser.username}</span><button class="hdr-btn" onclick="logout()">退出</button>`;
+        el.innerHTML=`
+            <div class="avatar-wrapper">
+                <div class="avatar-btn" onclick="toggleDropdown(event)">${getAvatarDisplay(currentUser)}</div>
+                <div class="avatar-dropdown" id="avatarDD">
+                    <div class="dd-header">
+                        <div class="dd-name">${esc(currentUser.username)}</div>
+                        <div class="dd-phone">${currentUser.phone}</div>
+                    </div>
+                    <div class="dd-item" onclick="showProfile()"><span class="dd-icon">👤</span>个人资料</div>
+                    <div class="dd-item" onclick="showAvatarPicker()"><span class="dd-icon">🖼️</span>修改头像</div>
+                    <div class="dd-divider"></div>
+                    <div class="dd-item danger" onclick="logout()"><span class="dd-icon">🚪</span>退出登录</div>
+                </div>
+            </div>`;
     } else {
         el.innerHTML=`<button class="hdr-btn" onclick="showAuth('login','header')">👤 登录</button>`;
     }
 }
 
+function toggleDropdown(e){
+    e.stopPropagation();
+    const dd=document.getElementById('avatarDD');
+    if(!dd) return;
+    ddOpen=!ddOpen;
+    dd.classList.toggle('show',ddOpen);
+}
+document.addEventListener('click',()=>{
+    if(ddOpen){ ddOpen=false; const dd=document.getElementById('avatarDD'); if(dd) dd.classList.remove('show'); }
+});
+
 function logout(){
     authToken=null;currentUser=null;localStorage.removeItem('game_token');
-    updateUserArea();
+    ddOpen=false; updateUserArea();
     toast('已退出登录','success');
+}
+
+function showProfile(){
+    ddOpen=false;
+    const dd=document.getElementById('avatarDD'); if(dd) dd.classList.remove('show');
+    const pa=document.getElementById('profileAvatar');
+    pa.innerHTML=getAvatarDisplay(currentUser,'lg');
+    document.getElementById('profileNameInput').value=currentUser.username;
+    document.getElementById('profilePhoneDisplay').value=currentUser.phone;
+    document.getElementById('profileOverlay').classList.add('active');
+}
+function closeProfile(){ document.getElementById('profileOverlay').classList.remove('active'); }
+
+async function saveProfile(){
+    const name=document.getElementById('profileNameInput').value.trim();
+    if(!name||name.length>20){ toast('用户名长度 1-20','error'); return; }
+    try{
+        const d=await api('/api/user/profile',{method:'PUT',body:JSON.stringify({username:name})});
+        if(d.code===0){ currentUser=d.data.user; updateUserArea(); closeProfile(); toast('资料已更新','success'); }
+        else toast(d.msg,'error');
+    }catch(e){ toast('网络错误','error'); }
+}
+
+function showAvatarPicker(){
+    ddOpen=false;
+    const dd=document.getElementById('avatarDD'); if(dd) dd.classList.remove('show');
+    closeProfile();
+    selectedEmoji='';
+    const grid=document.getElementById('emojiGrid');
+    grid.innerHTML=AVATAR_EMOJIS.map(e=>
+        `<div class="emoji-opt" data-emoji="${e}" onclick="selectEmoji(this,'${e}')">${e}</div>`
+    ).join('');
+    document.getElementById('avatarOverlay').classList.add('active');
+}
+function closeAvatarPicker(){ document.getElementById('avatarOverlay').classList.remove('active'); }
+
+function selectEmoji(el,emoji){
+    document.querySelectorAll('.emoji-opt').forEach(e=>e.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedEmoji=emoji;
+}
+
+async function confirmEmojiAvatar(){
+    if(!selectedEmoji){ toast('请先选择一个头像','error'); return; }
+    try{
+        const d=await api('/api/user/avatar',{method:'PUT',body:JSON.stringify({avatar:selectedEmoji})});
+        if(d.code===0){ currentUser=d.data.user; updateUserArea(); closeAvatarPicker(); toast('头像已更新','success'); }
+        else toast(d.msg,'error');
+    }catch(e){ toast('网络错误','error'); }
+}
+
+async function uploadAvatarFile(input){
+    const file=input.files[0];
+    if(!file) return;
+    if(file.size>2*1024*1024){ toast('图片不能超过 2MB','error'); input.value=''; return; }
+    const fd=new FormData();
+    fd.append('file',file);
+    try{
+        const headers={};
+        if(authToken) headers['Authorization']='Bearer '+authToken;
+        const r=await fetch('/api/user/avatar',{method:'POST',headers,body:fd});
+        const d=await r.json();
+        if(d.code===0){ currentUser=d.data.user; updateUserArea(); closeAvatarPicker(); toast('头像已更新','success'); }
+        else toast(d.msg,'error');
+    }catch(e){ toast('上传失败','error'); }
+    input.value='';
 }
 
 function showAuth(mode, source){
