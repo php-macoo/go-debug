@@ -1,4 +1,3 @@
-// Package main 是三消达人游戏的入口，负责初始化各层依赖并启动 HTTP 服务。
 package main
 
 import (
@@ -15,10 +14,8 @@ import (
 )
 
 func main() {
-	// 加载配置（数据库、服务端口、认证密钥等）
 	cfg := config.MustLoad("game/config.yaml")
 
-	// 初始化数据库连接并自动迁移表结构
 	db, err := dao.InitDB(cfg.Database)
 	if err != nil {
 		log.Fatalf("初始化数据库失败: %v", err)
@@ -26,26 +23,42 @@ func main() {
 	defer dao.CloseDB(db)
 	log.Println("数据库初始化完成")
 
-	// 依赖注入: DAO → Service → Handler
+	// DAO
 	userDAO := dao.NewUserDAO(db)
 	scoreDAO := dao.NewScoreDAO(db)
+	gameDAO := dao.NewGameDAO(db)
+	apiLogDAO := dao.NewApiLogDAO(db)
 
+	// 种子数据：按 game_key 补全缺失的默认游戏（含后续新增条目）
+	if err := gameDAO.SeedDefaults(); err != nil {
+		log.Printf("种子数据写入失败（可忽略）: %v", err)
+	}
+
+	// Service
 	authSvc := service.NewAuthService(cfg.Auth)
 	userSvc := service.NewUserService(userDAO, authSvc)
 	scoreSvc := service.NewScoreService(scoreDAO)
+	gameSvc := service.NewGameService(gameDAO)
 
+	// Handler
 	authH := handler.NewAuthHandler(userSvc, cfg.Server.StaticDir)
 	scoreH := handler.NewScoreHandler(scoreSvc)
+	gameH := handler.NewGameHandler(gameSvc)
 
-	// 创建 Gin 引擎，注册 API 路由
+	// Gin 引擎 & 路由
 	engine := gin.Default()
-	router.Setup(engine, authSvc, authH, scoreH)
+	router.Setup(engine, &router.Deps{
+		AuthSvc:   authSvc,
+		ApiLogDAO: apiLogDAO,
+		AuthH:     authH,
+		ScoreH:    scoreH,
+		GameH:     gameH,
+	})
 
-	// 未匹配的路由交给静态文件服务（前端页面）
 	fs := http.FileServer(http.Dir(cfg.Server.StaticDir))
 	engine.NoRoute(gin.WrapH(fs))
 
-	log.Printf("三消达人已启动，访问 http://localhost%s", cfg.Server.Addr)
+	log.Printf("小游戏空间已启动，访问 http://localhost%s", cfg.Server.Addr)
 	if err := engine.Run(cfg.Server.Addr); err != nil {
 		log.Fatalf("启动失败: %v", err)
 	}

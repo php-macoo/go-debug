@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>飞机大战</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(180deg, #0a0e27 0%, #1a1f4a 40%, #2d1b4e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #fff;
+            user-select: none;
+            touch-action: none;
+            overflow: hidden;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 480px;
+            padding: 10px 12px 4px;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .title { font-size: 17px; font-weight: 700; }
+        .header-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+        .stat {
+            font-size: 12px;
+            color: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.1);
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+        .game-wrap {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 4px 8px 16px;
+            min-height: 0;
+        }
+        #cv {
+            display: block;
+            border-radius: 12px;
+            border: 2px solid rgba(100, 180, 255, 0.25);
+            box-shadow: 0 0 40px rgba(80, 120, 255, 0.15);
+            background: linear-gradient(180deg, #0d1535 0%, #1a0f30 100%);
+            max-width: 100%;
+        }
+        .hint {
+            text-align: center;
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
+            padding: 0 12px 10px;
+        }
+        .overlay-msg {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+        }
+        .overlay-msg.on { display: flex; }
+        .msg-box {
+            background: linear-gradient(145deg, #252a55, #1a1538);
+            border: 1px solid rgba(120, 180, 255, 0.2);
+            border-radius: 18px;
+            padding: 26px 28px;
+            text-align: center;
+            max-width: 300px;
+        }
+        .msg-box h2 { margin-bottom: 8px; }
+        .msg-box p { color: rgba(255,255,255,0.55); font-size: 14px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="title">✈️ 飞机大战</div>
+    <div class="header-right">
+        <span class="stat">分 <strong id="score">0</strong></span>
+        <span class="stat">生命 <strong id="lives">3</strong></span>
+        <button class="hdr-btn" onclick="location.href='/'">大厅</button>
+        <div id="userArea"></div>
+    </div>
+</div>
+<div class="game-wrap">
+    <canvas id="cv" width="360" height="520"></canvas>
+</div>
+<p class="hint">← → 移动 · 空格发射 · 手机拖动飞机、松手连发</p>
+<div class="overlay-msg" id="overLay">
+    <div class="msg-box">
+        <h2 id="overTitle">游戏结束</h2>
+        <p id="overText"></p>
+        <button class="btn btn-primary" onclick="startGame()">再来一局</button>
+    </div>
+</div>
+<script src="/js/common/auth.js"></script>
+<script>
+(function () {
+    const canvas = document.getElementById("cv");
+    const ctx = canvas.getContext("2d");
+    let W = 360, H = 520;
+    let dpr = 1;
+
+    let player, bullets, enemies, particles;
+    let score, lives, frame, spawnEvery, running, rafId;
+    let keys = {};
+    let touchX = null, fireCooldown = 0, touchHeld = false;
+
+    function resize() {
+        const maxW = Math.min(400, window.innerWidth - 16);
+        const ratio = H / W;
+        W = Math.floor(maxW);
+        H = Math.floor(W * ratio);
+        dpr = window.devicePixelRatio || 1;
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (player) player.x = Math.min(Math.max(player.w / 2, player.x), W - player.w / 2);
+    }
+
+    function reset() {
+        player = { x: W / 2, y: H - 56, w: 36, h: 28, vx: 0 };
+        bullets = [];
+        enemies = [];
+        particles = [];
+        score = 0;
+        lives = 3;
+        frame = 0;
+        spawnEvery = 55;
+        running = true;
+        fireCooldown = 0;
+        document.getElementById("score").textContent = "0";
+        document.getElementById("lives").textContent = "3";
+        document.getElementById("overLay").classList.remove("on");
+    }
+
+    function spawnEnemy() {
+        var w = 32 + Math.floor(Math.random() * 18);
+        enemies.push({
+            x: w / 2 + Math.random() * (W - w),
+            y: -20,
+            w: w,
+            h: 22,
+            vy: 1.2 + Math.random() * 1.5 + score * 0.002,
+            hp: 1,
+            hue: Math.floor(Math.random() * 60)
+        });
+    }
+
+    function burst(x, y, color) {
+        for (var i = 0; i < 10; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                life: 20 + Math.floor(Math.random() * 15),
+                color: color
+            });
+        }
+    }
+
+    function drawPlayer() {
+        var px = player.x, py = player.y, pw = player.w, ph = player.h;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.fillStyle = "#5dade2";
+        ctx.beginPath();
+        ctx.moveTo(0, -ph / 2);
+        ctx.lineTo(pw / 2, ph / 2);
+        ctx.lineTo(0, ph / 2 - 6);
+        ctx.lineTo(-pw / 2, ph / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#f39c12";
+        ctx.fillRect(-4, ph / 2 - 4, 8, 10);
+        ctx.restore();
+    }
+
+    function draw() {
+        ctx.fillStyle = "rgba(10, 15, 40, 0.35)";
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = "rgba(255,255,255,0.04)";
+        for (var y = (frame % 40); y < H; y += 40) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(W, y);
+            ctx.stroke();
+        }
+
+        bullets.forEach(function (b) {
+            ctx.fillStyle = "#f1c40f";
+            ctx.fillRect(b.x - 2, b.y - 8, 4, 14);
+        });
+
+        enemies.forEach(function (e) {
+            ctx.fillStyle = "hsl(" + e.hue + ", 70%, 55%)";
+            ctx.fillRect(e.x - e.w / 2, e.y - e.h / 2, e.w, e.h);
+            ctx.fillStyle = "rgba(0,0,0,0.25)";
+            ctx.fillRect(e.x - e.w / 2 + 4, e.y - e.h / 2 + 4, e.w - 8, 4);
+        });
+
+        drawPlayer();
+
+        particles.forEach(function (p) {
+            ctx.globalAlpha = p.life / 30;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+            ctx.globalAlpha = 1;
+        });
+    }
+
+    function rectsHit(ax, ay, aw, ah, bx, by, bw, bh) {
+        return Math.abs(ax - bx) < (aw + bw) / 2 && Math.abs(ay - by) < (ah + bh) / 2;
+    }
+
+    function update() {
+        if (!running) return;
+        frame++;
+        fireCooldown = Math.max(0, fireCooldown - 1);
+
+        var spd = 5;
+        if (keys["ArrowLeft"] || keys["a"] || keys["A"]) player.x -= spd;
+        if (keys["ArrowRight"] || keys["d"] || keys["D"]) player.x += spd;
+        if (touchX !== null) {
+            var tx = touchX;
+            player.x += (tx - player.x) * 0.18;
+        }
+        player.x = Math.max(player.w / 2, Math.min(W - player.w / 2, player.x));
+
+        if (((keys[" "] || keys["Spacebar"] || keys["Space"]) || touchHeld) && fireCooldown === 0) {
+            bullets.push({ x: player.x, y: player.y - player.h / 2 - 4, dead: false });
+            fireCooldown = 8;
+        }
+
+        bullets = bullets.filter(function (b) {
+            b.y -= 9;
+            return b.y > -10;
+        });
+
+        if (frame % spawnEvery === 0) {
+            spawnEnemy();
+            spawnEvery = Math.max(22, 55 - Math.floor(score / 80));
+        }
+
+        enemies.forEach(function (e) {
+            e.y += e.vy;
+        });
+
+        bullets.forEach(function (b) {
+            if (b.dead) return;
+            enemies.forEach(function (e) {
+                if (e.hp <= 0) return;
+                if (rectsHit(b.x, b.y, 4, 14, e.x, e.y, e.w, e.h)) {
+                    e.hp = 0;
+                    b.dead = true;
+                    score += 10;
+                    burst(e.x, e.y, "#e74c3c");
+                    document.getElementById("score").textContent = String(score);
+                }
+            });
+        });
+
+        bullets = bullets.filter(function (b) { return !b.dead && b.y > -10; });
+        enemies = enemies.filter(function (e) {
+            if (e.hp <= 0) return false;
+            if (e.y > H + 30) return false;
+            if (rectsHit(player.x, player.y, player.w - 6, player.h - 4, e.x, e.y, e.w - 4, e.h - 4)) {
+                burst(e.x, e.y, "#e67e22");
+                lives--;
+                document.getElementById("lives").textContent = String(Math.max(0, lives));
+                return false;
+            }
+            return true;
+        });
+
+        if (lives <= 0) {
+            running = false;
+            document.getElementById("overTitle").textContent = "战机被击毁";
+            document.getElementById("overText").textContent = "最终得分 " + score;
+            document.getElementById("overLay").classList.add("on");
+            return;
+        }
+
+        particles = particles.filter(function (p) {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life--;
+            return p.life > 0;
+        });
+    }
+
+    function loop() {
+        update();
+        draw();
+        if (running) rafId = requestAnimationFrame(loop);
+    }
+
+    window.startGame = function () {
+        resize();
+        reset();
+        cancelAnimationFrame(rafId);
+        ctx.fillStyle = "#0d1535";
+        ctx.fillRect(0, 0, W, H);
+        rafId = requestAnimationFrame(loop);
+    };
+
+    document.addEventListener("keydown", function (e) {
+        if (e.code === "Space") {
+            keys["Space"] = true;
+            e.preventDefault();
+        } else {
+            keys[e.key] = true;
+        }
+    });
+    document.addEventListener("keyup", function (e) {
+        if (e.code === "Space") keys["Space"] = false;
+        else keys[e.key] = false;
+    });
+
+    var fireTouchId = null;
+    canvas.addEventListener("touchstart", function (e) {
+        e.preventDefault();
+        touchHeld = true;
+        for (var i = 0; i < e.changedTouches.length; i++) {
+            var t = e.changedTouches[i];
+            var r = canvas.getBoundingClientRect();
+            var mx = (t.clientX - r.left) * (W / r.width);
+            if (fireTouchId === null) fireTouchId = t.identifier;
+            touchX = mx;
+        }
+    }, { passive: false });
+    canvas.addEventListener("touchmove", function (e) {
+        e.preventDefault();
+        for (var i = 0; i < e.changedTouches.length; i++) {
+            var t = e.changedTouches[i];
+            if (t.identifier !== fireTouchId) continue;
+            var r = canvas.getBoundingClientRect();
+            touchX = (t.clientX - r.left) * (W / r.width);
+        }
+    }, { passive: false });
+    function endTouch(e) {
+        for (var i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === fireTouchId) {
+                fireTouchId = null;
+                touchX = null;
+                touchHeld = false;
+            }
+        }
+    }
+    canvas.addEventListener("touchend", endTouch);
+    canvas.addEventListener("touchcancel", endTouch);
+
+    window.addEventListener("resize", function () {
+        if (running) {
+            resize();
+        }
+    });
+
+    window.GamePortalAuth.init({ mountId: "userArea", gameKey: "plane" });
+    startGame();
+})();
+</script>
+</body>
+</html>

@@ -1,4 +1,3 @@
-// Package handler 是 HTTP 处理层，每个方法只负责：参数绑定 → 调用 Service → 返回响应。
 package handler
 
 import (
@@ -16,23 +15,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthHandler 处理用户认证和个人资料相关的 HTTP 请求。
 type AuthHandler struct {
 	userSvc   *service.UserService
 	staticDir string
 }
 
-// NewAuthHandler 创建 AuthHandler，注入 UserService 和静态文件目录路径（用于头像存储）。
 func NewAuthHandler(userSvc *service.UserService, staticDir string) *AuthHandler {
 	return &AuthHandler{userSvc: userSvc, staticDir: staticDir}
 }
 
-// Register 处理用户注册请求。
-// POST /api/register  Body: {"phone":"13800001111","password":"123456"}
+// Register 处理用户注册请求，source 字段记录注册来源游戏。
+// POST /api/auth/register  Body: {"phone":"...","password":"...","source":"match3"}
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req struct {
-		Phone string `json:"phone" binding:"required"`
-		Pwd   string `json:"password" binding:"required"`
+		Phone  string `json:"phone" binding:"required"`
+		Pwd    string `json:"password" binding:"required"`
+		Source string `json:"source"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Fail400(c, "请求格式错误")
@@ -47,7 +45,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, token, err := h.userSvc.Register(req.Phone, req.Pwd)
+	user, token, err := h.userSvc.Register(req.Phone, req.Pwd, req.Source)
 	if err != nil {
 		resp.Fail400(c, err.Error())
 		return
@@ -55,14 +53,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	resp.OK(c, gin.H{
 		"token": token,
 		"user": gin.H{
-			"id": user.ID, "username": user.Username,
-			"phone": util.MaskPhone(user.Phone), "avatar": user.Avatar,
+			"username": user.Username,
+			"phone":  util.MaskPhone(user.Phone), "avatar": user.Avatar,
 		},
 	})
 }
 
 // Login 处理用户登录请求。
-// POST /api/login  Body: {"phone":"13800001111","password":"123456"}
+// POST /api/auth/login  Body: {"phone":"...","password":"..."}
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req struct {
 		Phone string `json:"phone" binding:"required"`
@@ -81,14 +79,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	resp.OK(c, gin.H{
 		"token": token,
 		"user": gin.H{
-			"id": user.ID, "username": user.Username,
-			"phone": util.MaskPhone(user.Phone), "avatar": user.Avatar,
+			"username": user.Username,
+			"phone":  util.MaskPhone(user.Phone), "avatar": user.Avatar,
 		},
 	})
 }
 
-// GetUser 获取当前登录用户的信息（需认证中间件）。
-// GET /api/user  Header: Authorization: Bearer <token>
+// GetUser 获取当前登录用户信息。
+// GET /api/user
 func (h *AuthHandler) GetUser(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	user, err := h.userSvc.GetByID(uid)
@@ -98,14 +96,14 @@ func (h *AuthHandler) GetUser(c *gin.Context) {
 	}
 	resp.OK(c, gin.H{
 		"user": gin.H{
-			"id": user.ID, "username": user.Username,
-			"phone": util.MaskPhone(user.Phone), "avatar": user.Avatar,
+			"username": user.Username,
+			"phone":  util.MaskPhone(user.Phone), "avatar": user.Avatar,
 		},
 	})
 }
 
 // UpdateProfile 更新用户名。
-// PUT /api/user/profile  Body: {"username":"newName"}
+// PUT /api/user/profile
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req struct {
@@ -127,14 +125,14 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 	resp.OK(c, gin.H{
 		"user": gin.H{
-			"id": user.ID, "username": user.Username,
-			"phone": util.MaskPhone(user.Phone), "avatar": user.Avatar,
+			"username": user.Username,
+			"phone":  util.MaskPhone(user.Phone), "avatar": user.Avatar,
 		},
 	})
 }
 
-// UploadAvatar 上传头像图片，保存到 static/avatars/ 目录。
-// POST /api/user/avatar  multipart/form-data  field: file
+// UploadAvatar 上传头像图片。
+// POST /api/user/avatar
 func (h *AuthHandler) UploadAvatar(c *gin.Context) {
 	uid := middleware.GetUID(c)
 
@@ -181,14 +179,14 @@ func (h *AuthHandler) UploadAvatar(c *gin.Context) {
 	}
 	resp.OK(c, gin.H{
 		"user": gin.H{
-			"id": user.ID, "username": user.Username,
-			"phone": util.MaskPhone(user.Phone), "avatar": user.Avatar,
+			"username": user.Username,
+			"phone":  util.MaskPhone(user.Phone), "avatar": user.Avatar,
 		},
 	})
 }
 
 // SetAvatar 设置预置头像（emoji）。
-// PUT /api/user/avatar  Body: {"avatar":"🐱"}
+// PUT /api/user/avatar
 func (h *AuthHandler) SetAvatar(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req struct {
@@ -206,8 +204,8 @@ func (h *AuthHandler) SetAvatar(c *gin.Context) {
 	}
 	resp.OK(c, gin.H{
 		"user": gin.H{
-			"id": user.ID, "username": user.Username,
-			"phone": util.MaskPhone(user.Phone), "avatar": user.Avatar,
+			"username": user.Username,
+			"phone":  util.MaskPhone(user.Phone), "avatar": user.Avatar,
 		},
 	})
 }

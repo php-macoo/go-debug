@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>贪吃蛇</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(160deg, #0a1628 0%, #1a3a2e 45%, #0d2137 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #fff;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 520px;
+            padding: 12px 14px 6px;
+            gap: 8px;
+        }
+        .title { font-size: 18px; font-weight: 700; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .stat {
+            font-size: 13px;
+            color: rgba(255,255,255,0.75);
+            background: rgba(255,255,255,0.08);
+            padding: 5px 12px;
+            border-radius: 14px;
+        }
+        .wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 8px 12px 20px;
+        }
+        #cv {
+            display: block;
+            border-radius: 14px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+            border: 2px solid rgba(255,255,255,0.12);
+            background: #0d1f18;
+            max-width: 100%;
+            height: auto;
+        }
+        .hint {
+            margin-top: 10px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.45);
+            text-align: center;
+            max-width: 360px;
+        }
+        .btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .btn2 {
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .overlay-msg {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+        }
+        .overlay-msg.on { display: flex; }
+        .msg-box {
+            background: linear-gradient(145deg, #1e3d2f, #0f2430);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 18px;
+            padding: 28px 32px;
+            text-align: center;
+            max-width: 300px;
+        }
+        .msg-box h2 { margin-bottom: 8px; font-size: 22px; }
+        .msg-box p { color: rgba(255,255,255,0.6); font-size: 14px; margin-bottom: 18px; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="title">🐍 贪吃蛇</div>
+    <div class="header-right">
+        <span class="stat">得分 <strong id="score">0</strong></span>
+        <button class="hdr-btn" onclick="location.href='/'">返回大厅</button>
+        <div id="userArea"></div>
+    </div>
+</div>
+<div class="wrap">
+    <canvas id="cv" width="360" height="360"></canvas>
+    <p class="hint">方向键或滑动屏幕控制 · 空格暂停</p>
+    <div class="btns">
+        <button class="btn2" onclick="startGame()">新游戏</button>
+    </div>
+</div>
+<div class="overlay-msg" id="overLay">
+    <div class="msg-box">
+        <h2 id="overTitle">游戏结束</h2>
+        <p id="overText"></p>
+        <button class="btn btn-primary" onclick="startGame()">再来一局</button>
+    </div>
+</div>
+<script src="/js/common/auth.js"></script>
+<script>
+(function () {
+    const COLS = 18, ROWS = 18;
+    const canvas = document.getElementById("cv");
+    const ctx = canvas.getContext("2d");
+    let cell = 20;
+    let dpr = 1;
+
+    let snake, dir, nextDir, food, tickMs, loopId, running, paused;
+    let touchStart = null;
+
+    function resize() {
+        const max = Math.min(400, Math.floor(window.innerWidth - 24));
+        cell = Math.floor(max / COLS);
+        const px = cell * COLS;
+        dpr = window.devicePixelRatio || 1;
+        canvas.style.width = px + "px";
+        canvas.style.height = px + "px";
+        canvas.width = Math.floor(px * dpr);
+        canvas.height = Math.floor(px * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function randFood() {
+        let x, y, ok;
+        do {
+            x = Math.floor(Math.random() * COLS);
+            y = Math.floor(Math.random() * ROWS);
+            ok = !snake.some(function (s) { return s.x === x && s.y === y; });
+        } while (!ok);
+        food = { x: x, y: y };
+    }
+
+    function reset() {
+        snake = [{ x: 8, y: 9 }, { x: 7, y: 9 }, { x: 6, y: 9 }];
+        dir = { x: 1, y: 0 };
+        nextDir = { x: 1, y: 0 };
+        tickMs = 140;
+        randFood();
+        running = true;
+        paused = false;
+        document.getElementById("score").textContent = "0";
+        document.getElementById("overLay").classList.remove("on");
+    }
+
+    function draw() {
+        const w = cell * COLS, h = cell * ROWS;
+        ctx.fillStyle = "#0d1f18";
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = "rgba(255,255,255,0.06)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= COLS; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i * cell, 0);
+            ctx.lineTo(i * cell, h);
+            ctx.stroke();
+        }
+        for (let j = 0; j <= ROWS; j++) {
+            ctx.beginPath();
+            ctx.moveTo(0, j * cell);
+            ctx.lineTo(w, j * cell);
+            ctx.stroke();
+        }
+        ctx.fillStyle = "#e74c3c";
+        ctx.beginPath();
+        ctx.arc(food.x * cell + cell / 2, food.y * cell + cell / 2, cell * 0.38, 0, Math.PI * 2);
+        ctx.fill();
+        snake.forEach(function (seg, i) {
+            const g = i === 0 ? 1 : 0.75;
+            ctx.fillStyle = "rgba(46, 204, 113," + g + ")";
+            const pad = i === 0 ? 1 : 2;
+            ctx.fillRect(seg.x * cell + pad, seg.y * cell + pad, cell - pad * 2, cell - pad * 2);
+            if (i === 0) {
+                ctx.fillStyle = "#fff";
+                const ey = cell * 0.2;
+                ctx.fillRect(seg.x * cell + cell * 0.55, seg.y * cell + ey, 3, 3);
+                ctx.fillRect(seg.x * cell + cell * 0.75, seg.y * cell + ey, 3, 3);
+            }
+        });
+    }
+
+    function step() {
+        if (!running || paused) return;
+        dir = nextDir;
+        var head = snake[0];
+        var nx = head.x + dir.x, ny = head.y + dir.y;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) {
+            gameOver("撞墙啦");
+            return;
+        }
+        if (snake.some(function (s) { return s.x === nx && s.y === ny; })) {
+            gameOver("咬到自己了");
+            return;
+        }
+        snake.unshift({ x: nx, y: ny });
+        if (nx === food.x && ny === food.y) {
+            var sc = parseInt(document.getElementById("score").textContent, 10) + 10;
+            document.getElementById("score").textContent = String(sc);
+            randFood();
+            var prev = tickMs;
+            tickMs = Math.max(70, tickMs - 3);
+            if (tickMs !== prev) {
+                clearInterval(loopId);
+                loopId = setInterval(step, tickMs);
+            }
+        } else {
+            snake.pop();
+        }
+        draw();
+    }
+
+    function gameOver(msg) {
+        running = false;
+        clearInterval(loopId);
+        document.getElementById("overTitle").textContent = "游戏结束";
+        document.getElementById("overText").textContent = msg + " · 得分 " + document.getElementById("score").textContent;
+        document.getElementById("overLay").classList.add("on");
+    }
+
+    function setDir(dx, dy) {
+        if (!running || paused) return;
+        if (dir.x === -dx && dir.y === -dy) return;
+        nextDir = { x: dx, y: dy };
+    }
+
+    window.startGame = function () {
+        resize();
+        reset();
+        clearInterval(loopId);
+        draw();
+        loopId = setInterval(step, tickMs);
+    };
+
+    document.addEventListener("keydown", function (e) {
+        if (e.code === "Space") {
+            e.preventDefault();
+            if (!running) return;
+            paused = !paused;
+            return;
+        }
+        var m = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+        if (m[e.code]) {
+            e.preventDefault();
+            setDir(m[e.code][0], m[e.code][1]);
+        }
+    });
+
+    canvas.addEventListener("touchstart", function (e) {
+        if (e.touches.length !== 1) return;
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }, { passive: true });
+    canvas.addEventListener("touchend", function (e) {
+        if (!touchStart || !e.changedTouches[0]) return;
+        var dx = e.changedTouches[0].clientX - touchStart.x;
+        var dy = e.changedTouches[0].clientY - touchStart.y;
+        touchStart = null;
+        if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+        if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 1 : -1, 0);
+        else setDir(0, dy > 0 ? 1 : -1);
+    });
+
+    window.addEventListener("resize", function () {
+        if (running) {
+            resize();
+            draw();
+        }
+    });
+
+    window.GamePortalAuth.init({ mountId: "userArea", gameKey: "snake" });
+    startGame();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>数独计划</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #0d1b2a 0%, #1b2838 50%, #0d1b2a 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+            color: #fff;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 520px;
+            padding: 14px 16px 6px;
+            gap: 8px;
+        }
+        .title { font-size: 19px; font-weight: 700; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .info-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            width: 100%;
+            max-width: 520px;
+            padding: 4px 16px 10px;
+        }
+        .info-chip {
+            font-size: 13px;
+            color: rgba(255,255,255,0.7);
+            background: rgba(255,255,255,0.08);
+            padding: 5px 14px;
+            border-radius: 14px;
+        }
+        .diff-btn {
+            padding: 5px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.8);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .diff-btn.active {
+            background: linear-gradient(135deg, #ffd200, #f7971e);
+            color: #1a1a2e;
+            border-color: transparent;
+            font-weight: 700;
+        }
+        .board-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 6px;
+        }
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 0;
+            border: 2px solid rgba(255,255,255,0.45);
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.04);
+        }
+        .sudoku-cell {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 0.5px solid rgba(255,255,255,0.1);
+            transition: background 0.1s;
+            position: relative;
+        }
+        .sudoku-cell:nth-child(3n) { border-right: 1.5px solid rgba(255,255,255,0.35); }
+        .sudoku-cell:nth-child(9n) { border-right: none; }
+        .sudoku-cell.row-border { border-bottom: 1.5px solid rgba(255,255,255,0.35); }
+        .sudoku-cell.given {
+            color: rgba(255,255,255,0.9);
+            font-weight: 800;
+        }
+        .sudoku-cell.user-input {
+            color: #7dd3fc;
+        }
+        .sudoku-cell.selected {
+            background: rgba(255,210,0,0.2);
+        }
+        .sudoku-cell.highlighted {
+            background: rgba(255,255,255,0.06);
+        }
+        .sudoku-cell.error {
+            color: #ff6b6b;
+            background: rgba(255,107,107,0.12);
+        }
+        .sudoku-cell.same-value {
+            background: rgba(125,211,252,0.12);
+        }
+        .numpad {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            width: 100%;
+            max-width: 400px;
+            padding: 14px 16px;
+        }
+        .num-btn {
+            width: 40px;
+            height: 44px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .num-btn:hover { background: rgba(255,255,255,0.18); }
+        .num-btn.active-num { background: rgba(255,210,0,0.3); border-color: #ffd200; }
+        .num-btn.erase { font-size: 14px; font-weight: 400; }
+        .tools-bar {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 0 16px 22px;
+        }
+        .tool-btn2 {
+            padding: 9px 18px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.85);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .tool-btn2:hover { background: rgba(255,255,255,0.15); }
+        .tool-btn2:disabled { opacity: 0.35; cursor: not-allowed; }
+        .win-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .win-overlay.active { display: flex; }
+        .win-box {
+            background: linear-gradient(145deg, #2d2b55, #1e1b3a);
+            border-radius: 20px;
+            padding: 32px 28px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.12);
+            max-width: 320px;
+            width: 90%;
+        }
+        .win-box h2 { margin-bottom: 8px; }
+        .win-box p { color: rgba(255,255,255,0.6); font-size: 14px; margin-bottom: 18px; }
+        @media (max-width: 400px) {
+            .sudoku-cell { width: 34px; height: 34px; font-size: 15px; }
+            .num-btn { width: 34px; height: 38px; font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="title">🧩 数独计划</div>
+    <div class="header-right">
+        <button class="hdr-btn" onclick="location.href='/'">返回大厅</button>
+        <div id="userArea"></div>
+    </div>
+</div>
+
+<div class="info-bar">
+    <button class="diff-btn active" data-diff="easy" onclick="setDifficulty('easy',this)">简单</button>
+    <button class="diff-btn" data-diff="medium" onclick="setDifficulty('medium',this)">中等</button>
+    <button class="diff-btn" data-diff="hard" onclick="setDifficulty('hard',this)">困难</button>
+    <div class="info-chip" id="timerDisplay">⏱ 00:00</div>
+    <div class="info-chip" id="errorCount">❌ 0/3</div>
+</div>
+
+<div class="board-area">
+    <div class="sudoku-grid" id="sudokuGrid"></div>
+</div>
+
+<div class="numpad" id="numpad"></div>
+
+<div class="tools-bar">
+    <button class="tool-btn2" onclick="eraseCell()">擦除</button>
+    <button class="tool-btn2" id="hintBtn" onclick="useHint()">💡 提示 (<span id="hintCount">3</span>)</button>
+    <button class="tool-btn2" onclick="newGame()">新游戏</button>
+</div>
+
+<div class="win-overlay" id="winOverlay">
+    <div class="win-box">
+        <h2>🎉 恭喜完成!</h2>
+        <p id="winMsg">用时 00:00</p>
+        <button class="btn btn-primary" onclick="newGame();document.getElementById('winOverlay').classList.remove('active')">再来一局</button>
+    </div>
+</div>
+
+<script src="/js/common/auth.js"></script>
+<script>
+const DIFFICULTY_CLUES = { easy: 42, medium: 32, hard: 25 };
+let solution = [];
+let puzzle = [];
+let userGrid = [];
+let selectedCell = -1;
+let difficulty = "easy";
+let errors = 0;
+let maxErrors = 3;
+let hints = 3;
+let timerHandle = null;
+let startTime = 0;
+let gameActive = false;
+
+function generateSolution() {
+    const board = Array.from({ length: 9 }, () => Array(9).fill(0));
+    fillBoard(board);
+    return board;
+}
+
+function fillBoard(board) {
+    const empty = findEmpty(board);
+    if (!empty) return true;
+    const [row, col] = empty;
+    const nums = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    for (const num of nums) {
+        if (isValid(board, row, col, num)) {
+            board[row][col] = num;
+            if (fillBoard(board)) return true;
+            board[row][col] = 0;
+        }
+    }
+    return false;
+}
+
+function findEmpty(board) {
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            if (board[r][c] === 0) return [r, c];
+        }
+    }
+    return null;
+}
+
+function isValid(board, row, col, num) {
+    for (let c = 0; c < 9; c++) {
+        if (board[row][c] === num) return false;
+    }
+    for (let r = 0; r < 9; r++) {
+        if (board[r][col] === num) return false;
+    }
+    const br = Math.floor(row / 3) * 3;
+    const bc = Math.floor(col / 3) * 3;
+    for (let r = br; r < br + 3; r++) {
+        for (let c = bc; c < bc + 3; c++) {
+            if (board[r][c] === num) return false;
+        }
+    }
+    return true;
+}
+
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function makePuzzle(sol, clueCount) {
+    const p = sol.map((row) => row.slice());
+    const cells = [];
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            cells.push([r, c]);
+        }
+    }
+    shuffle(cells);
+    let removed = 0;
+    const target = 81 - clueCount;
+    for (const [r, c] of cells) {
+        if (removed >= target) break;
+        p[r][c] = 0;
+        removed++;
+    }
+    return p;
+}
+
+function renderGrid() {
+    const grid = document.getElementById("sudokuGrid");
+    grid.innerHTML = "";
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            const idx = r * 9 + c;
+            const cell = document.createElement("div");
+            cell.className = "sudoku-cell";
+            if (r === 2 || r === 5) cell.classList.add("row-border");
+
+            const isGiven = puzzle[r][c] !== 0;
+            const value = userGrid[r][c];
+
+            if (isGiven) {
+                cell.classList.add("given");
+                cell.textContent = value;
+            } else if (value !== 0) {
+                cell.classList.add("user-input");
+                cell.textContent = value;
+                if (value !== solution[r][c]) {
+                    cell.classList.add("error");
+                }
+            }
+
+            if (idx === selectedCell) {
+                cell.classList.add("selected");
+            } else if (selectedCell >= 0) {
+                const sr = Math.floor(selectedCell / 9);
+                const sc = selectedCell % 9;
+                if (r === sr || c === sc ||
+                    (Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3))) {
+                    cell.classList.add("highlighted");
+                }
+                const selectedVal = userGrid[sr][sc];
+                if (selectedVal && value === selectedVal && idx !== selectedCell) {
+                    cell.classList.add("same-value");
+                }
+            }
+
+            cell.addEventListener("click", () => selectCell(idx));
+            grid.appendChild(cell);
+        }
+    }
+}
+
+function renderNumpad() {
+    const pad = document.getElementById("numpad");
+    pad.innerHTML = "";
+    for (let n = 1; n <= 9; n++) {
+        const btn = document.createElement("button");
+        btn.className = "num-btn";
+        btn.textContent = n;
+        btn.addEventListener("click", () => inputNumber(n));
+        pad.appendChild(btn);
+    }
+}
+
+function selectCell(idx) {
+    if (!gameActive) return;
+    selectedCell = idx;
+    renderGrid();
+}
+
+function inputNumber(num) {
+    if (!gameActive || selectedCell < 0) return;
+    const r = Math.floor(selectedCell / 9);
+    const c = selectedCell % 9;
+    if (puzzle[r][c] !== 0) return;
+
+    userGrid[r][c] = num;
+
+    if (num !== solution[r][c]) {
+        errors++;
+        document.getElementById("errorCount").textContent = "❌ " + errors + "/" + maxErrors;
+        GamePortalAuth.toast("填入错误", "error");
+        if (errors >= maxErrors) {
+            gameActive = false;
+            stopTimer();
+            renderGrid();
+            setTimeout(() => {
+                document.getElementById("winMsg").textContent = "错误次数过多，游戏结束";
+                document.getElementById("winOverlay").querySelector("h2").textContent = "😵 挑战失败";
+                document.getElementById("winOverlay").classList.add("active");
+            }, 300);
+            return;
+        }
+    }
+
+    renderGrid();
+    checkWin();
+}
+
+function eraseCell() {
+    if (!gameActive || selectedCell < 0) return;
+    const r = Math.floor(selectedCell / 9);
+    const c = selectedCell % 9;
+    if (puzzle[r][c] !== 0) return;
+    userGrid[r][c] = 0;
+    renderGrid();
+}
+
+function useHint() {
+    if (!gameActive || hints <= 0) return;
+    const emptyCells = [];
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            if (userGrid[r][c] === 0 || userGrid[r][c] !== solution[r][c]) {
+                emptyCells.push([r, c]);
+            }
+        }
+    }
+    if (!emptyCells.length) return;
+    const [r, c] = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    userGrid[r][c] = solution[r][c];
+    puzzle[r][c] = solution[r][c];
+    hints--;
+    document.getElementById("hintCount").textContent = hints;
+    if (hints <= 0) document.getElementById("hintBtn").disabled = true;
+    selectedCell = r * 9 + c;
+    renderGrid();
+    checkWin();
+}
+
+function checkWin() {
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+            if (userGrid[r][c] !== solution[r][c]) return;
+        }
+    }
+    gameActive = false;
+    stopTimer();
+    const elapsed = Date.now() - startTime;
+    const m = Math.floor(elapsed / 60000);
+    const s = Math.floor((elapsed % 60000) / 1000);
+    document.getElementById("winOverlay").querySelector("h2").textContent = "🎉 恭喜完成!";
+    document.getElementById("winMsg").textContent =
+        "用时 " + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") +
+        " | 难度: " + { easy: "简单", medium: "中等", hard: "困难" }[difficulty];
+    document.getElementById("winOverlay").classList.add("active");
+}
+
+function startTimer() {
+    startTime = Date.now();
+    timerHandle = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const m = Math.floor(elapsed / 60000);
+        const s = Math.floor((elapsed % 60000) / 1000);
+        document.getElementById("timerDisplay").textContent =
+            "⏱ " + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }, 500);
+}
+
+function stopTimer() {
+    clearInterval(timerHandle);
+}
+
+function setDifficulty(diff, el) {
+    difficulty = diff;
+    document.querySelectorAll(".diff-btn").forEach((b) => b.classList.remove("active"));
+    el.classList.add("active");
+    newGame();
+}
+
+function newGame() {
+    stopTimer();
+    errors = 0;
+    hints = 3;
+    selectedCell = -1;
+    gameActive = true;
+    document.getElementById("errorCount").textContent = "❌ 0/" + maxErrors;
+    document.getElementById("hintCount").textContent = "3";
+    document.getElementById("hintBtn").disabled = false;
+    document.getElementById("winOverlay").classList.remove("active");
+
+    solution = generateSolution();
+    puzzle = makePuzzle(solution, DIFFICULTY_CLUES[difficulty]);
+    userGrid = puzzle.map((row) => row.slice());
+
+    renderGrid();
+    renderNumpad();
+    startTimer();
+}
+
+document.addEventListener("keydown", (event) => {
+    if (!gameActive) return;
+    const num = parseInt(event.key, 10);
+    if (num >= 1 && num <= 9) {
+        inputNumber(num);
+        return;
+    }
+    if (event.key === "Backspace" || event.key === "Delete") {
+        eraseCell();
+        return;
+    }
+    if (selectedCell < 0) return;
+    const r = Math.floor(selectedCell / 9);
+    const c = selectedCell % 9;
+    if (event.key === "ArrowLeft" && c > 0) { selectedCell = r * 9 + c - 1; renderGrid(); }
+    else if (event.key === "ArrowRight" && c < 8) { selectedCell = r * 9 + c + 1; renderGrid(); }
+    else if (event.key === "ArrowUp" && r > 0) { selectedCell = (r - 1) * 9 + c; renderGrid(); }
+    else if (event.key === "ArrowDown" && r < 8) { selectedCell = (r + 1) * 9 + c; renderGrid(); }
+});
+
+window.GamePortalAuth.init({ mountId: "userArea", gameKey: "sudoku" });
+newGame();
+</script>
+</body>
+</html>

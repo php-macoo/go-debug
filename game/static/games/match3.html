@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>三消达人</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+            user-select: none;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 560px;
+            padding: 14px 16px 8px;
+            color: #fff;
+            gap: 8px;
+        }
+        .title { font-size: 19px; font-weight: 700; color: #fff; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .timer {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.08);
+            padding: 5px 12px;
+            border-radius: 16px;
+            font-variant-numeric: tabular-nums;
+        }
+        .board-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 10px;
+        }
+        .board { position: relative; }
+        .card {
+            position: absolute;
+            width: 58px;
+            height: 58px;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.3s ease;
+            border: 1.5px solid rgba(255, 255, 255, 0.6);
+        }
+        .card:hover:not(.blocked) {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            z-index: 999 !important;
+        }
+        .card.blocked { cursor: not-allowed; }
+        .card.blocked::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: rgba(20, 15, 40, 0.45);
+            border-radius: 11px;
+        }
+        .card.fly-out {
+            opacity: 0;
+            transform: scale(0.5) translateY(40px);
+            transition: all 0.3s ease-in;
+        }
+        .bottom-area {
+            width: 100%;
+            max-width: 560px;
+            padding: 8px 16px 20px;
+        }
+        .slot-bar {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(16px);
+            padding: 10px 12px;
+            border-radius: 18px;
+            min-height: 78px;
+            align-items: center;
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+        .slot-empty {
+            width: 58px;
+            height: 58px;
+            border-radius: 12px;
+            border: 2px dashed rgba(255, 255, 255, 0.12);
+            flex-shrink: 0;
+        }
+        .slot-card {
+            width: 58px;
+            height: 58px;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            border: 1.5px solid rgba(255, 255, 255, 0.6);
+            flex-shrink: 0;
+            animation: slotIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes slotIn {
+            from { transform: scale(0) translateY(-20px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .slot-card.matching { animation: slotMatch 0.45s ease-out forwards; }
+        @keyframes slotMatch {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.2); background: linear-gradient(145deg, #ffd700, #ffaa00); box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); }
+            100% { transform: scale(0); opacity: 0; }
+        }
+        .tools {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .tool-btn {
+            position: relative;
+            padding: 8px 16px;
+            border-radius: 24px;
+            border: 1.5px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .tool-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .badge {
+            position: absolute;
+            top: -7px;
+            right: -7px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: #fff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .remain-info { text-align: center; color: rgba(255, 255, 255, 0.35); font-size: 12px; margin-top: 8px; }
+        .overlay-box p { margin-bottom: 16px; }
+        .lb-table { width: 100%; margin: 12px 0 20px; text-align: left; }
+        .lb-row {
+            display: flex;
+            padding: 9px 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            align-items: center;
+        }
+        .lb-row.lb-head { color: rgba(255, 255, 255, 0.4); font-size: 12px; border-bottom-color: rgba(255, 255, 255, 0.12); }
+        .lb-rank { width: 36px; text-align: center; }
+        .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .lb-time { width: 72px; text-align: right; font-variant-numeric: tabular-nums; }
+        .lb-empty { color: rgba(255, 255, 255, 0.3); font-size: 14px; padding: 24px 0; }
+        .win-rank { color: #ffd200; font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+        .confetti-piece { position: fixed; width: 10px; height: 10px; z-index: 1001; pointer-events: none; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="title">🃏 三消达人</div>
+    <div class="header-right">
+        <button class="hdr-btn" onclick="goBack()">返回大厅</button>
+        <div class="timer" id="timer">⏱ 00:00</div>
+        <button class="hdr-btn" onclick="showLeaderboard()">🏆</button>
+        <div id="userArea"></div>
+    </div>
+</div>
+
+<div class="board-wrapper">
+    <div class="board" id="board"></div>
+</div>
+
+<div class="bottom-area">
+    <div class="slot-bar" id="slotBar"></div>
+    <div class="tools">
+        <button class="tool-btn" id="btnUndo" onclick="useUndo()">↩️ 撤回 <span class="badge" id="undoCount">3</span></button>
+        <button class="tool-btn" id="btnShuffle" onclick="useShuffle()">🔀 洗牌 <span class="badge" id="shuffleCount">1</span></button>
+        <button class="tool-btn" id="btnMoveOut" onclick="useMoveOut()">📤 移出 <span class="badge" id="moveOutCount">1</span></button>
+    </div>
+    <div class="remain-info" id="remainInfo"></div>
+</div>
+
+<div class="overlay" id="winOverlay">
+    <div class="overlay-box">
+        <h2>🎉 恭喜通关！</h2>
+        <p id="winText">用时 00:00</p>
+        <div id="winRank" class="win-rank" style="display:none"></div>
+        <button class="btn btn-primary" onclick="restartGame()">再来一局</button>
+        <div id="winLoginHint" style="display:none; margin-top:14px;">
+            <p style="margin-bottom:10px">登录后可保存成绩到排行榜</p>
+            <button class="btn" style="background:rgba(255,255,255,0.1);color:#fff;" onclick="showAuthFromWin()">登录 / 注册</button>
+        </div>
+    </div>
+</div>
+
+<div class="overlay" id="loseOverlay">
+    <div class="overlay-box">
+        <h2>😵 槽位已满</h2>
+        <p>别灰心，再试一次吧！</p>
+        <button class="btn btn-primary" onclick="restartGame()">重新开始</button>
+    </div>
+</div>
+
+<div class="overlay" id="lbOverlay">
+    <div class="overlay-box" style="padding-bottom:24px">
+        <button class="close-x" onclick="closeLB()">&times;</button>
+        <h2>🏆 排行榜 TOP 10</h2>
+        <div class="lb-table">
+            <div class="lb-row lb-head">
+                <span class="lb-rank">#</span>
+                <span class="lb-name">玩家</span>
+                <span class="lb-time">最佳用时</span>
+            </div>
+        </div>
+        <div id="lbList"></div>
+        <button class="btn" style="margin-top:8px;background:rgba(255,255,255,0.1);color:#fff;" onclick="closeLB()">关闭</button>
+    </div>
+</div>
+
+<script src="/js/common/auth.js"></script>
+<script>
+const CARD_TYPES = ["🍎", "🍊", "🍋", "🍇", "🍓", "🍑", "🥝", "🍌", "🍉", "🫐", "🌽", "🍄"];
+const CARD_W = 58, CARD_H = 58, GAP = 4, CELL = CARD_W + GAP, LAYER_OFF = 26, MAX_SLOT = 7;
+const LAYERS_DEF = [{ rows: 4, cols: 5 }, { rows: 3, cols: 4 }, { rows: 2, cols: 2 }];
+const medals = ["🥇", "🥈", "🥉"];
+
+let cards = [], slot = [], undoStack = [];
+let undoLeft = 3, shuffleLeft = 1, moveOutLeft = 1;
+let timerHandle = null, startTime = 0, gameActive = false, animLock = false;
+let pendingScoreMs = null;
+let audioCtx = null;
+
+function goBack() { window.location.href = "/"; }
+
+function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function beep(f, d, t, v) {
+    try {
+        ensureAudio();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.frequency.value = f;
+        o.type = t || "sine";
+        g.gain.setValueAtTime(v || 0.15, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
+        o.start();
+        o.stop(audioCtx.currentTime + d);
+    } catch (error) {}
+}
+function sfxClick() { beep(880, 0.08); }
+function sfxMatch() { beep(523, 0.12); setTimeout(() => beep(659, 0.12), 80); setTimeout(() => beep(784, 0.15), 160); }
+function sfxWin() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.25), i * 120)); }
+function sfxLose() { beep(250, 0.4, "sawtooth", 0.1); }
+function sfxPower() { beep(600, 0.1); setTimeout(() => beep(900, 0.1), 80); }
+
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+function esc(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+function fmtMs(ms) {
+    const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000), cs = Math.floor((ms % 1000) / 10);
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+}
+function fmtTime() { return fmtMs(Date.now() - startTime); }
+
+function genCards() {
+    const total = LAYERS_DEF.reduce((sum, layer) => sum + layer.rows * layer.cols, 0);
+    const types = [];
+    for (let i = 0; i < total / 3; i++) {
+        const type = CARD_TYPES[i % CARD_TYPES.length];
+        types.push(type, type, type);
+    }
+    shuffle(types);
+    const bw = LAYERS_DEF[0].cols * CELL;
+    const bh = LAYERS_DEF[0].rows * CELL;
+    cards = [];
+    let index = 0;
+    LAYERS_DEF.forEach((layer, layerIndex) => {
+        const lw = layer.cols * CELL;
+        const lh = layer.rows * CELL;
+        const ox = (bw - lw) / 2 + layerIndex * LAYER_OFF;
+        const oy = (bh - lh) / 2 + layerIndex * LAYER_OFF;
+        for (let r = 0; r < layer.rows; r++) {
+            for (let c = 0; c < layer.cols; c++) {
+                cards.push({ id: index, type: types[index], layer: layerIndex, x: ox + c * CELL, y: oy + r * CELL, removed: false });
+                index++;
+            }
+        }
+    });
+}
+function rectsOverlap(a, b) {
+    return !(a.x + CARD_W <= b.x || b.x + CARD_W <= a.x || a.y + CARD_H <= b.y || b.y + CARD_H <= a.y);
+}
+function isBlocked(card) {
+    return cards.some((other) => !other.removed && other.layer > card.layer && rectsOverlap(card, other));
+}
+function renderBoard() {
+    const board = document.getElementById("board");
+    board.innerHTML = "";
+    const maxLayer = LAYERS_DEF.length - 1;
+    board.style.width = (LAYERS_DEF[0].cols * CELL - GAP + maxLayer * LAYER_OFF + CARD_W) + "px";
+    board.style.height = (LAYERS_DEF[0].rows * CELL - GAP + maxLayer * LAYER_OFF + CARD_H) + "px";
+    [...cards].sort((a, b) => a.layer - b.layer || a.id - b.id).forEach((card) => {
+        if (card.removed) return;
+        const blocked = isBlocked(card);
+        const el = document.createElement("div");
+        el.className = "card" + (blocked ? " blocked" : "");
+        el.style.left = card.x + "px";
+        el.style.top = card.y + "px";
+        el.style.zIndex = card.layer * 100 + card.id;
+        el.textContent = card.type;
+        el.dataset.id = card.id;
+        if (!blocked) el.addEventListener("click", () => onCardClick(card));
+        board.appendChild(el);
+    });
+    document.getElementById("remainInfo").textContent = "剩余 " + cards.filter((card) => !card.removed).length + " 张";
+}
+function renderSlot() {
+    const bar = document.getElementById("slotBar");
+    bar.innerHTML = "";
+    slot.forEach((slotCard) => {
+        const el = document.createElement("div");
+        el.className = "slot-card";
+        el.textContent = slotCard.type;
+        bar.appendChild(el);
+    });
+    for (let i = slot.length; i < MAX_SLOT; i++) {
+        const el = document.createElement("div");
+        el.className = "slot-empty";
+        bar.appendChild(el);
+    }
+}
+function onCardClick(card) {
+    if (!gameActive || animLock || card.removed || isBlocked(card) || slot.length >= MAX_SLOT) return;
+    sfxClick();
+    undoStack.push(card.id);
+    card.removed = true;
+    const cardEl = document.querySelector(`.card[data-id="${card.id}"]`);
+    if (cardEl) {
+        cardEl.classList.add("fly-out");
+        setTimeout(() => cardEl.remove(), 300);
+    }
+    let insertAt = slot.length;
+    for (let i = slot.length - 1; i >= 0; i--) {
+        if (slot[i].type === card.type) {
+            insertAt = i + 1;
+            break;
+        }
+    }
+    slot.splice(insertAt, 0, { id: card.id, type: card.type });
+    setTimeout(() => {
+        renderSlot();
+        renderBoard();
+        setTimeout(checkMatch, 200);
+    }, 150);
+}
+function checkMatch() {
+    const counts = {};
+    slot.forEach((item, i) => {
+        if (!counts[item.type]) counts[item.type] = [];
+        counts[item.type].push(i);
+    });
+    let matched = null;
+    Object.keys(counts).some((type) => {
+        if (counts[type].length >= 3) {
+            matched = type;
+            return true;
+        }
+        return false;
+    });
+    if (matched) {
+        animLock = true;
+        sfxMatch();
+        const indexes = counts[matched].slice(0, 3);
+        const bar = document.getElementById("slotBar");
+        indexes.forEach((i) => {
+            if (bar.children[i]) bar.children[i].classList.add("matching");
+        });
+        setTimeout(() => {
+            indexes.sort((a, b) => b - a).forEach((i) => slot.splice(i, 1));
+            renderSlot();
+            animLock = false;
+            if (cards.filter((c) => !c.removed).length === 0 && slot.length === 0) gameWin();
+            else checkMatch();
+        }, 450);
+        return;
+    }
+    if (slot.length >= MAX_SLOT) setTimeout(gameLose, 350);
+}
+function useUndo() {
+    if (!gameActive || animLock || undoLeft <= 0 || !undoStack.length) return;
+    sfxPower();
+    const cardId = undoStack.pop();
+    const slotIndex = slot.findIndex((item) => item.id === cardId);
+    if (slotIndex !== -1) slot.splice(slotIndex, 1);
+    const card = cards.find((item) => item.id === cardId);
+    if (card) card.removed = false;
+    undoLeft--;
+    document.getElementById("undoCount").textContent = undoLeft;
+    if (!undoLeft) document.getElementById("btnUndo").disabled = true;
+    renderBoard();
+    renderSlot();
+}
+function useShuffle() {
+    if (!gameActive || animLock || shuffleLeft <= 0) return;
+    sfxPower();
+    const remainCards = cards.filter((c) => !c.removed);
+    const types = remainCards.map((c) => c.type);
+    shuffle(types);
+    remainCards.forEach((card, i) => {
+        card.type = types[i];
+    });
+    shuffleLeft--;
+    document.getElementById("shuffleCount").textContent = shuffleLeft;
+    if (!shuffleLeft) document.getElementById("btnShuffle").disabled = true;
+    renderBoard();
+}
+function useMoveOut() {
+    if (!gameActive || animLock || moveOutLeft <= 0 || !slot.length) return;
+    sfxPower();
+    const count = Math.min(3, slot.length);
+    const moved = slot.splice(0, count);
+    moved.forEach((slotCard) => {
+        const card = cards.find((item) => item.id === slotCard.id);
+        if (card) card.removed = false;
+    });
+    moveOutLeft--;
+    document.getElementById("moveOutCount").textContent = moveOutLeft;
+    if (!moveOutLeft) document.getElementById("btnMoveOut").disabled = true;
+    renderBoard();
+    renderSlot();
+}
+function startTimer() {
+    startTime = Date.now();
+    timerHandle = setInterval(() => {
+        const ms = Date.now() - startTime;
+        const m = Math.floor(ms / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        document.getElementById("timer").textContent = `⏱ ${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }, 500);
+}
+function stopTimer() { clearInterval(timerHandle); }
+async function submitScore(ms) {
+    try {
+        const data = await GamePortalAuth.api("/api/game/match3/score", {
+            method: "POST",
+            body: JSON.stringify({ completionTimeMs: ms })
+        });
+        if (data.code === 0) return data.data.rank;
+    } catch (error) {}
+    return null;
+}
+function updateWinRank(rank) {
+    const el = document.getElementById("winRank");
+    if (rank) {
+        el.textContent = "🏅 你的排名：第 " + rank + " 名";
+        el.style.display = "block";
+    }
+}
+async function gameWin() {
+    gameActive = false;
+    stopTimer();
+    sfxWin();
+    spawnConfetti();
+    const ms = Date.now() - startTime;
+    document.getElementById("winText").textContent = "用时 " + fmtTime();
+    document.getElementById("winRank").style.display = "none";
+    if (GamePortalAuth.getCurrentUser()) {
+        document.getElementById("winLoginHint").style.display = "none";
+        updateWinRank(await submitScore(ms));
+    } else {
+        pendingScoreMs = ms;
+        document.getElementById("winLoginHint").style.display = "block";
+    }
+    document.getElementById("winOverlay").classList.add("active");
+}
+function gameLose() {
+    gameActive = false;
+    stopTimer();
+    sfxLose();
+    document.getElementById("loseOverlay").classList.add("active");
+}
+function spawnConfetti() {
+    const colors = ["#ff6b6b", "#ffd93d", "#6bcb77", "#4d96ff", "#ff6eb4", "#a66cff", "#ffd200", "#f7971e"];
+    for (let i = 0; i < 80; i++) {
+        setTimeout(() => {
+            const el = document.createElement("div");
+            el.className = "confetti-piece";
+            el.style.background = colors[Math.floor(Math.random() * colors.length)];
+            el.style.left = Math.random() * 100 + "vw";
+            el.style.top = "-12px";
+            const size = Math.random() * 8 + 5;
+            el.style.width = size + "px";
+            el.style.height = size + "px";
+            el.style.borderRadius = Math.random() > 0.5 ? "50%" : "2px";
+            document.body.appendChild(el);
+            const duration = Math.random() * 2000 + 1800;
+            const drift = (Math.random() - 0.5) * 250;
+            el.animate([
+                { transform: "translateY(0) rotate(0deg)", opacity: 1 },
+                { transform: `translateY(100vh) translateX(${drift}px) rotate(${Math.random() * 720}deg)`, opacity: 0 }
+            ], { duration: duration, easing: "cubic-bezier(0.25,0.46,0.45,0.94)" });
+            setTimeout(() => el.remove(), duration);
+        }, Math.random() * 600);
+    }
+}
+function resetPowers() {
+    undoLeft = 3;
+    shuffleLeft = 1;
+    moveOutLeft = 1;
+    document.getElementById("undoCount").textContent = "3";
+    document.getElementById("shuffleCount").textContent = "1";
+    document.getElementById("moveOutCount").textContent = "1";
+    document.getElementById("btnUndo").disabled = false;
+    document.getElementById("btnShuffle").disabled = false;
+    document.getElementById("btnMoveOut").disabled = false;
+}
+function initGame() {
+    slot = [];
+    undoStack = [];
+    animLock = false;
+    pendingScoreMs = null;
+    resetPowers();
+    genCards();
+    renderBoard();
+    renderSlot();
+    gameActive = true;
+    startTimer();
+}
+function restartGame() {
+    document.getElementById("winOverlay").classList.remove("active");
+    document.getElementById("loseOverlay").classList.remove("active");
+    document.querySelectorAll(".confetti-piece").forEach((node) => node.remove());
+    stopTimer();
+    initGame();
+}
+function showAuthFromWin() {
+    document.getElementById("winOverlay").classList.remove("active");
+    GamePortalAuth.showAuth("register", async () => {
+        if (pendingScoreMs === null) return;
+        const rank = await submitScore(pendingScoreMs);
+        pendingScoreMs = null;
+        updateWinRank(rank);
+        document.getElementById("winLoginHint").style.display = "none";
+        document.getElementById("winOverlay").classList.add("active");
+    });
+}
+async function showLeaderboard() {
+    const ok = GamePortalAuth.requireLogin();
+    if (!ok) return;
+    document.getElementById("lbOverlay").classList.add("active");
+    document.getElementById("lbList").innerHTML = '<div class="lb-empty">加载中...</div>';
+    try {
+        const data = await GamePortalAuth.api("/api/game/match3/leaderboard");
+        if (data.code === 0) renderLeaderboard(data.data.list);
+        else document.getElementById("lbList").innerHTML = '<div class="lb-empty">加载失败</div>';
+    } catch (error) {
+        document.getElementById("lbList").innerHTML = '<div class="lb-empty">网络错误</div>';
+    }
+}
+function closeLB() { document.getElementById("lbOverlay").classList.remove("active"); }
+function renderLeaderboard(list) {
+    const container = document.getElementById("lbList");
+    if (!list || !list.length) {
+        container.innerHTML = '<div class="lb-empty">暂无记录，快来挑战吧</div>';
+        return;
+    }
+    container.innerHTML = list.map((entry) => {
+        const rank = entry.rank <= 3 ? medals[entry.rank - 1] : entry.rank;
+        return `<div class="lb-row"><span class="lb-rank">${rank}</span><span class="lb-name">${esc(entry.username)}</span><span class="lb-time">${fmtMs(entry.bestTimeMs)}</span></div>`;
+    }).join("");
+}
+
+window.GamePortalAuth.init({ mountId: "userArea", gameKey: "match3" });
+initGame();
+</script>
+</body>
+</html>
