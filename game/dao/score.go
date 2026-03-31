@@ -1,6 +1,9 @@
 package dao
 
 import (
+	"errors"
+	"time"
+
 	"go-debug/game/model"
 
 	"gorm.io/gorm"
@@ -16,6 +19,24 @@ func NewScoreDAO(db *gorm.DB) *ScoreDAO {
 
 func (d *ScoreDAO) Create(score *model.Score) error {
 	return d.db.Create(score).Error
+}
+
+// CreateWithTx 在事务内写入成绩。
+func (d *ScoreDAO) CreateWithTx(tx *gorm.DB, score *model.Score) error {
+	return tx.Create(score).Error
+}
+
+// LastSubmitAt 返回该用户在该游戏下最近一次上报时间；若无记录 ok=false。
+func (d *ScoreDAO) LastSubmitAt(userID int64, gameKey string) (t time.Time, ok bool, err error) {
+	var row model.Score
+	err = d.db.Where("user_id = ? AND game_key = ?", userID, gameKey).Order("created_at DESC").First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	return row.CreatedAt, true, nil
 }
 
 // GetRank 计算给定完成时间在指定游戏中所有玩家最佳成绩中的排名。

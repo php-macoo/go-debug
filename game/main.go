@@ -28,6 +28,7 @@ func main() {
 	scoreDAO := dao.NewScoreDAO(db)
 	gameDAO := dao.NewGameDAO(db)
 	apiLogDAO := dao.NewApiLogDAO(db)
+	runDAO := dao.NewGameRunDAO(db)
 
 	// 种子数据：按 game_key 补全缺失的默认游戏（含后续新增条目）
 	if err := gameDAO.SeedDefaults(); err != nil {
@@ -37,12 +38,12 @@ func main() {
 	// Service
 	authSvc := service.NewAuthService(cfg.Auth)
 	userSvc := service.NewUserService(userDAO, authSvc)
-	scoreSvc := service.NewScoreService(scoreDAO)
+	scoreSvc := service.NewScoreService(db, scoreDAO, gameDAO, runDAO, cfg)
 	gameSvc := service.NewGameService(gameDAO)
 
 	// Handler
 	authH := handler.NewAuthHandler(userSvc, cfg.Server.StaticDir)
-	scoreH := handler.NewScoreHandler(scoreSvc)
+	scoreH := handler.NewScoreHandler(scoreSvc, userSvc)
 	gameH := handler.NewGameHandler(gameSvc)
 
 	// Gin 引擎 & 路由

@@ -14,6 +14,16 @@ func NewGameDAO(db *gorm.DB) *GameDAO {
 	return &GameDAO{db: db}
 }
 
+// GetOnlineByKey 返回已上线且 game_key 匹配的一条游戏，否则 gorm.ErrRecordNotFound。
+func (d *GameDAO) GetOnlineByKey(gameKey string) (*model.Game, error) {
+	var g model.Game
+	err := d.db.Where("game_key = ? AND status = ?", gameKey, "online").First(&g).Error
+	if err != nil {
+		return nil, err
+	}
+	return &g, nil
+}
+
 func (d *GameDAO) ListOnline() ([]model.Game, error) {
 	var games []model.Game
 	err := d.db.Where("status = ?", "online").Order("sort_order ASC, id ASC").Find(&games).Error

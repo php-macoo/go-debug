@@ -1,6 +1,8 @@
 package service
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -76,4 +78,47 @@ func (s *UserService) UpdateUsername(id int64, username string) (*model.User, er
 		return nil, fmt.Errorf("更新用户名失败")
 	}
 	return s.userDAO.FindByID(id)
+}
+
+// guestSyntheticPhone 将客户端持有的设备标识映射为占位的唯一 phone（≤20 字符，满足 users.phone 长度）。
+func guestSyntheticPhone(deviceKey string) string {
+	sum := sha256.Sum256([]byte(deviceKey))
+	hexStr := hex.EncodeToString(sum[:])
+	return "g" + hexStr[:19]
+}
+
+// EnsureGuest 根据匿名设备标识查找或创建一条用户记录（Source=guest），用于未登录完局与上榜。
+func (s *UserService) EnsureGuest(deviceKey string) (int64, error) {
+	deviceKey = strings.TrimSpace(deviceKey)
+	if len(deviceKey) < 8 || len(deviceKey) > 128 {
+		return 0, fmt.Errorf("游客标识长度须在 8～128 之间")
+	}
+	phone := guestSyntheticPhone(deviceKey)
+	user, err := s.userDAO.FindByPhone(phone)
+	if err == nil {
+		return user.ID, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, err
+	}
+	hashed, err := s.auth.HashPassword(deviceKey + "|guest")
+	if err != nil {
+		return 0, fmt.Errorf("系统错误")
+	}
+	u := &model.User{
+		Phone:    phone,
+		Password: hashed,
+		Username: "游客",
+		Source:   "guest",
+	}
+	if err := s.userDAO.Create(u); err != nil {
+		if strings.Contains(err.Error(), "Duplicate") {
+			user2, err2 := s.userDAO.FindByPhone(phone)
+			if err2 == nil {
+				return user2.ID, nil
+			}
+		}
+		return 0, fmt.Errorf("创建游客失败")
+	}
+	return u.ID, nil
 }

@@ -216,10 +216,6 @@
         <p id="winText">用时 00:00</p>
         <div id="winRank" class="win-rank" style="display:none"></div>
         <button class="btn btn-primary" onclick="restartGame()">再来一局</button>
-        <div id="winLoginHint" style="display:none; margin-top:14px;">
-            <p style="margin-bottom:10px">登录后可保存成绩到排行榜</p>
-            <button class="btn" style="background:rgba(255,255,255,0.1);color:#fff;" onclick="showAuthFromWin()">登录 / 注册</button>
-        </div>
     </div>
 </div>
 
@@ -252,7 +248,7 @@
         <button type="button" class="game-help-close" data-game-help-close aria-label="关闭">&times;</button>
         <h2 id="gameHelpTitle" class="game-help-title">攻略与操作</h2>
         <div class="game-help-content">
-            <p><strong>开始与暂停：</strong>进入页面后先点<strong>开始游戏</strong>再计时；对局中可用<strong>暂停</strong> / 左侧「继续」随时继续。</p>
+            <p><strong>开始与暂停：</strong>进入页面后先点<strong>开始游戏</strong>（会向服务器登记本局）再计时；对局中可用<strong>暂停</strong> / 「继续」。登录后成绩会带上本局凭证上报。</p>
             <p><strong>目标：</strong>从叠放的牌中点击选牌，牌会进入下方槽位；槽位里出现<strong>三张相同图案</strong>即消除。</p>
             <p><strong>操作：</strong>点选场上任意未被压住的牌。下方槽位最多 <strong>7</strong> 格，满了且无法三消则本局结束。</p>
             <p><strong>道具：</strong>撤回（收回上一张）、洗牌（重排场上）、移出（从槽位拿出一张暂存），次数有限，留到僵局再用。</p>
@@ -273,7 +269,7 @@ let cards = [], slot = [], undoStack = [];
 let undoLeft = 3, shuffleLeft = 1, moveOutLeft = 1;
 let timerHandle = null, startTime = 0, gameActive = false, animLock = false;
 let m3TimeOffsetMs = 0, m3TimerTicking = false, m3PlayPaused = false;
-let pendingScoreMs = null;
+let scoreRunId = null;
 let audioCtx = null;
 
 function goBack() { window.location.href = "/"; }
@@ -515,13 +511,20 @@ function resetM3Timer() {
     document.getElementById("timer").textContent = "⏱ 00:00";
 }
 async function submitScore(ms) {
+    if (!scoreRunId) {
+        GamePortalAuth.toast("缺少对局凭证，请重新开始本局", "error");
+        return null;
+    }
     try {
         const data = await GamePortalAuth.api("/api/game/match3/score", {
             method: "POST",
-            body: JSON.stringify({ completionTimeMs: ms })
+            body: JSON.stringify({ runId: scoreRunId, completionTimeMs: ms })
         });
         if (data.code === 0) return data.data.rank;
-    } catch (error) {}
+        GamePortalAuth.toast(data.msg || "成绩提交失败", "error");
+    } catch (error) {
+        GamePortalAuth.toast("网络错误", "error");
+    }
     return null;
 }
 function updateWinRank(rank) {
@@ -540,13 +543,7 @@ async function gameWin() {
     const ms = getM3ElapsedMs();
     document.getElementById("winText").textContent = "用时 " + fmtMs(ms);
     document.getElementById("winRank").style.display = "none";
-    if (GamePortalAuth.getCurrentUser()) {
-        document.getElementById("winLoginHint").style.display = "none";
-        updateWinRank(await submitScore(ms));
-    } else {
-        pendingScoreMs = ms;
-        document.getElementById("winLoginHint").style.display = "block";
-    }
+    updateWinRank(await submitScore(ms));
     document.getElementById("winOverlay").classList.add("active");
     updateM3Controls();
 }
@@ -630,7 +627,7 @@ function prepareBoard() {
     slot = [];
     undoStack = [];
     animLock = false;
-    pendingScoreMs = null;
+    scoreRunId = null;
     gameActive = false;
     m3PlayPaused = false;
     resetM3Timer();
@@ -640,19 +637,30 @@ function prepareBoard() {
     renderSlot();
     updateM3Controls();
 }
-function startM3Session() {
+async function startM3Session() {
+    const data = await GamePortalAuth.api("/api/game/match3/run/start", { method: "POST", body: "{}" });
+    if (data.code !== 0) {
+        GamePortalAuth.toast(data.msg || "开始对局失败，请稍后重试", "error");
+        updateM3Controls();
+        return;
+    }
+    scoreRunId = data.data.runId;
     gameActive = true;
     m3PlayPaused = false;
     startTimer();
     updateM3Controls();
 }
-function m3BeginOrResume() {
+async function m3BeginOrResume() {
     if (m3PlayPaused) {
         m3PlayPaused = false;
         gameActive = true;
         startTimer();
-    } else if (!gameActive) {
-        startM3Session();
+        updateM3Controls();
+        return;
+    }
+    if (!gameActive) {
+        await startM3Session();
+        return;
     }
     updateM3Controls();
 }
@@ -665,7 +673,7 @@ function m3Pause() {
 }
 function initGame() {
     prepareBoard();
-    startM3Session();
+    void startM3Session();
 }
 function restartGame() {
     document.getElementById("winOverlay").classList.remove("active");
@@ -673,20 +681,7 @@ function restartGame() {
     document.querySelectorAll(".confetti-piece").forEach((node) => node.remove());
     initGame();
 }
-function showAuthFromWin() {
-    document.getElementById("winOverlay").classList.remove("active");
-    GamePortalAuth.showAuth("register", async () => {
-        if (pendingScoreMs === null) return;
-        const rank = await submitScore(pendingScoreMs);
-        pendingScoreMs = null;
-        updateWinRank(rank);
-        document.getElementById("winLoginHint").style.display = "none";
-        document.getElementById("winOverlay").classList.add("active");
-    });
-}
 async function showLeaderboard() {
-    const ok = GamePortalAuth.requireLogin();
-    if (!ok) return;
     document.getElementById("lbOverlay").classList.add("active");
     document.getElementById("lbList").innerHTML = '<div class="lb-empty">加载中...</div>';
     try {
@@ -710,7 +705,7 @@ function renderLeaderboard(list) {
     }).join("");
 }
 
-document.getElementById("m3BtnStart").addEventListener("click", m3BeginOrResume);
+document.getElementById("m3BtnStart").addEventListener("click", () => { void m3BeginOrResume(); });
 document.getElementById("m3BtnPause").addEventListener("click", m3Pause);
 window.GamePortalAuth.init({ mountId: "userArea", gameKey: "match3" });
 prepareBoard();

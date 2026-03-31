@@ -3,9 +3,11 @@ package dao
 import (
 	"database/sql"
 	"fmt"
+	"log"
+	"os"
+	"time"
 
 	"go-debug/game/config"
-	"go-debug/game/model"
 
 	_ "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/mysql"
@@ -21,8 +23,23 @@ func InitDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	_, _ = rawDB.Exec("CREATE DATABASE IF NOT EXISTS " + cfg.Name)
 	rawDB.Close()
 
+	var gormLog logger.Interface
+	if cfg.LogSQL {
+		gormLog = logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			logger.Config{
+				SlowThreshold:             200 * time.Millisecond,
+				LogLevel:                  logger.Info,
+				IgnoreRecordNotFoundError: true,
+				Colorful:                  true,
+			},
+		)
+	} else {
+		gormLog = logger.Default.LogMode(logger.Warn)
+	}
+
 	db, err := gorm.Open(mysql.Open(cfg.DSN(true)), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger: gormLog,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("连接 %s 失败: %w", cfg.Name, err)
@@ -35,9 +52,6 @@ func InitDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 
-	if err = db.AutoMigrate(&model.User{}, &model.Score{}, &model.Game{}, &model.ApiLog{}); err != nil {
-		return nil, fmt.Errorf("迁移失败: %w", err)
-	}
 	return db, nil
 }
 

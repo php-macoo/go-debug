@@ -10,7 +10,31 @@ database:
   name: "game_db"
   max_open_conns: 20
   max_idle_conns: 5
+  log_sql: true # 开发环境打印 SQL；生产环境改为 false 或删除本行
 
 auth:
   token_secret: "three-match-game-secret-2026"
   token_expire_days: 7
+
+# 成绩上报：同一用户同一 gameKey 两次成功提交的最小间隔（秒）；对局凭证有效期（分钟）
+score:
+  submit_min_interval_seconds: 15
+  run_ttl_minutes: 120
+  default_min_completion_time_ms: 8000
+  default_max_completion_time_ms: 7200000
+  games:
+    match3:
+      min_completion_time_ms: 10000
+      max_completion_time_ms: 3600000
+    snake:
+      min_completion_time_ms: 5000
+      max_completion_time_ms: 1800000
+    plane:
+      min_completion_time_ms: 3000
+      max_completion_time_ms: 1800000
+    "2048":
+      min_completion_time_ms: 5000
+      max_completion_time_ms: 7200000
+    sudoku:
+      min_completion_time_ms: 15000
+      max_completion_time_ms: 14400000

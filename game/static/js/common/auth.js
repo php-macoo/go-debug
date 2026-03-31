@@ -41,6 +41,20 @@
         return user.username ? user.username.charAt(0).toUpperCase() : "?";
     }
 
+    function ensureGuestDeviceId() {
+        if (authToken) return null;
+        let gid = localStorage.getItem("game_guest_device_id");
+        if (!gid) {
+            if (typeof crypto !== "undefined" && crypto.randomUUID) {
+                gid = crypto.randomUUID();
+            } else {
+                gid = "g" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+            }
+            localStorage.setItem("game_guest_device_id", gid);
+        }
+        return gid;
+    }
+
     async function api(path, opts) {
         const headers = {};
         if (!(opts && opts.body instanceof FormData)) {
@@ -48,6 +62,9 @@
         }
         if (authToken) {
             headers["Authorization"] = "Bearer " + authToken;
+        } else {
+            const gid = ensureGuestDeviceId();
+            if (gid) headers["X-Guest-Device-Id"] = gid;
         }
         const response = await fetch(path, {
             ...opts,

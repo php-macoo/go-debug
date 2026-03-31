@@ -25,7 +25,7 @@ type Deps struct {
 //   - /api/games              公开 - 游戏大厅列表
 //   - /api/auth/*             公开 - 注册/登录
 //   - /api/user/*             需认证 - 用户资料
-//   - /api/game/:gameKey/*    需认证 - 游戏模块（成绩/排行榜）
+//   - /api/game/:gameKey/*    可选认证 - 登录或 X-Guest-Device-Id 匿名：run/start、交成绩；排行榜公开
 func Setup(engine *gin.Engine, deps *Deps) {
 	api := engine.Group("/api")
 	api.Use(middleware.AccessLog(deps.ApiLogDAO))
@@ -49,9 +49,10 @@ func Setup(engine *gin.Engine, deps *Deps) {
 		user.PUT("/avatar", deps.AuthH.SetAvatar)
 	}
 
-	// ─── 需认证: 游戏模块（按 gameKey 划分）───
-	game := api.Group("/game", middleware.Auth(deps.AuthSvc))
+	// ─── 游戏模块：可选登录；未登录时须由前端带 X-Guest-Device-Id（见 auth.js）───
+	game := api.Group("/game", middleware.OptionalAuth(deps.AuthSvc))
 	{
+		game.POST("/:gameKey/run/start", deps.ScoreH.StartRun)
 		game.POST("/:gameKey/score", deps.ScoreH.Submit)
 		game.GET("/:gameKey/leaderboard", deps.ScoreH.Leaderboard)
 	}

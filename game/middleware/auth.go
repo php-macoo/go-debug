@@ -35,8 +35,34 @@ func Auth(authSvc *service.AuthService) gin.HandlerFunc {
 	}
 }
 
+// OptionalAuth 与 Auth 相同解析 Bearer Token，但不强制：无令牌或无效时直接放行（不写 uid）。
+// 用于「登录优先，否则可走游客」的接口（如开局、交成绩）。
+func OptionalAuth(authSvc *service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if !strings.HasPrefix(header, "Bearer ") {
+			c.Next()
+			return
+		}
+		uid, err := authSvc.ValidateToken(strings.TrimPrefix(header, "Bearer "))
+		if err != nil {
+			c.Next()
+			return
+		}
+		c.Set(ContextKeyUID, uid)
+		c.Next()
+	}
+}
+
 // GetUID 从 gin.Context 中获取已认证的用户 ID（需配合 Auth 中间件使用）。
+// 类型异常或未设置时返回 0，避免 panic。
 func GetUID(c *gin.Context) int64 {
-	uid, _ := c.Get(ContextKeyUID)
-	return uid.(int64)
+	uid, exists := c.Get(ContextKeyUID)
+	if !exists {
+		return 0
+	}
+	if id, ok := uid.(int64); ok {
+		return id
+	}
+	return 0
 }
