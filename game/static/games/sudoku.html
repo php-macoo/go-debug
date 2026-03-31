@@ -67,6 +67,26 @@
             width: 100%;
             padding: 6px;
         }
+        /* 棋盘与数字键同宽；上下分层、拉开间距 */
+        .sudoku-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 26px;
+            width: max-content;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        .sudoku-board-layer {
+            border-radius: 14px;
+            padding: 5px;
+            background: linear-gradient(165deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow:
+                0 18px 40px rgba(0,0,0,0.45),
+                0 0 0 1px rgba(0,0,0,0.2) inset,
+                0 1px 0 rgba(255,255,255,0.08) inset;
+        }
         .sudoku-grid {
             display: grid;
             grid-template-columns: repeat(9, 1fr);
@@ -75,6 +95,34 @@
             border-radius: 8px;
             overflow: hidden;
             background: rgba(255,255,255,0.04);
+        }
+        .numpad-layer {
+            position: relative;
+            padding: 16px 12px 14px;
+            border-radius: 14px;
+            background: rgba(0,0,0,0.28);
+            border: 1px solid rgba(255,255,255,0.11);
+            box-shadow:
+                0 10px 28px rgba(0,0,0,0.35),
+                inset 0 1px 0 rgba(255,255,255,0.06);
+        }
+        .numpad-layer::before {
+            content: "";
+            position: absolute;
+            top: -14px;
+            left: 12%;
+            right: 12%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+            pointer-events: none;
+        }
+        .numpad-caption {
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.38);
+            text-align: center;
+            margin-bottom: 10px;
         }
         .sudoku-cell {
             width: 40px;
@@ -113,16 +161,16 @@
             background: rgba(125,211,252,0.12);
         }
         .numpad {
-            display: flex;
-            justify-content: center;
-            gap: 6px;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(9, minmax(0, 1fr));
+            gap: 5px;
             width: 100%;
-            max-width: 400px;
-            padding: 14px 16px;
+            padding: 0 2px;
+            box-sizing: border-box;
         }
         .num-btn {
-            width: 40px;
+            width: 100%;
+            min-width: 0;
             height: 44px;
             border-radius: 10px;
             border: 1px solid rgba(255,255,255,0.14);
@@ -134,6 +182,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            -webkit-tap-highlight-color: transparent;
         }
         .num-btn:hover { background: rgba(255,255,255,0.18); }
         .num-btn.active-num { background: rgba(255,210,0,0.3); border-color: #ffd200; }
@@ -142,7 +191,7 @@
             display: flex;
             justify-content: center;
             gap: 10px;
-            padding: 0 16px 22px;
+            padding: 6px 16px 22px;
         }
         .tool-btn2 {
             padding: 9px 18px;
@@ -178,7 +227,18 @@
         .win-box p { color: rgba(255,255,255,0.6); font-size: 14px; margin-bottom: 18px; }
         @media (max-width: 400px) {
             .sudoku-cell { width: 34px; height: 34px; font-size: 15px; }
-            .num-btn { width: 34px; height: 38px; font-size: 16px; }
+            .num-btn { height: 40px; font-size: 16px; }
+        }
+        /* 极窄屏：5+4 两行，第二行居中，避免按键过窄 */
+        @media (max-width: 340px) {
+            .numpad {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 6px;
+            }
+            .num-btn:nth-child(6) { grid-column: 2; }
+            .num-btn:nth-child(7) { grid-column: 3; }
+            .num-btn:nth-child(8) { grid-column: 4; }
+            .num-btn:nth-child(9) { grid-column: 5; }
         }
     </style>
 </head>
@@ -187,6 +247,7 @@
     <div class="title">🧩 数独计划</div>
     <div class="header-right">
         <button class="hdr-btn" onclick="location.href='/'">返回大厅</button>
+        <button type="button" class="game-help-trigger" data-game-help-open aria-label="攻略与操作">攻略</button>
         <div id="userArea"></div>
     </div>
 </div>
@@ -199,11 +260,22 @@
     <div class="info-chip" id="errorCount">❌ 0/3</div>
 </div>
 
-<div class="board-area">
-    <div class="sudoku-grid" id="sudokuGrid"></div>
+<div class="gameplay-control-bar" style="max-width:520px;padding-top:4px;padding-bottom:6px;">
+    <button type="button" class="gameplay-btn gameplay-btn-primary" id="sdkBtnStart">开始游戏</button>
+    <button type="button" class="gameplay-btn" id="sdkBtnPause" disabled>暂停</button>
 </div>
 
-<div class="numpad" id="numpad"></div>
+<div class="board-area">
+    <div class="sudoku-stack">
+        <div class="sudoku-board-layer">
+            <div class="sudoku-grid" id="sudokuGrid"></div>
+        </div>
+        <div class="numpad-layer">
+            <div class="numpad-caption">数字键盘</div>
+            <div class="numpad" id="numpad"></div>
+        </div>
+    </div>
+</div>
 
 <div class="tools-bar">
     <button class="tool-btn2" onclick="eraseCell()">擦除</button>
@@ -219,7 +291,21 @@
     </div>
 </div>
 
+<div class="game-help-overlay" id="gameHelpOverlay" hidden aria-hidden="true">
+    <div class="game-help-panel" role="dialog" aria-modal="true" aria-labelledby="gameHelpTitle" tabindex="-1">
+        <button type="button" class="game-help-close" data-game-help-close aria-label="关闭">&times;</button>
+        <h2 id="gameHelpTitle" class="game-help-title">攻略与操作</h2>
+        <div class="game-help-content">
+            <p><strong>规则：</strong>在 9×9 格子中填入 1～9，使每行、每列、每个 3×3 粗线宫格内数字不重复。题目给出的数字不可改。</p>
+            <p><strong>开始与暂停：</strong>点<strong>开始游戏</strong>后计时并允许填数；<strong>暂停</strong>会冻结计时与操作，也可按 <strong>P</strong> 切换。</p>
+            <p><strong>操作：</strong>先点选空格，再点下方数字填入；可用「擦除」清空自填数字。键盘 <strong>1–9</strong> 输入，方向键移动选中格，<strong>Backspace</strong> 擦除。</p>
+            <p><strong>难度：</strong>简单 / 中等 / 困难 初盘提示数不同。错填累计 3 次本局结束；「提示」会揭示一格正确答案（次数有限）。</p>
+        </div>
+    </div>
+</div>
+
 <script src="/js/common/auth.js"></script>
+<script src="/js/common/game-help.js"></script>
 <script>
 const DIFFICULTY_CLUES = { easy: 42, medium: 32, hard: 25 };
 let solution = [];
@@ -233,6 +319,10 @@ let hints = 3;
 let timerHandle = null;
 let startTime = 0;
 let gameActive = false;
+let sdkTimeOffsetMs = 0;
+let sdkTimerTicking = false;
+let sdkPlayPaused = false;
+let sdkLocked = false;
 
 function generateSolution() {
     const board = Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -385,8 +475,11 @@ function inputNumber(num) {
         GamePortalAuth.toast("填入错误", "error");
         if (errors >= maxErrors) {
             gameActive = false;
+            sdkPlayPaused = false;
+            sdkLocked = true;
             stopTimer();
             renderGrid();
+            updateSdkControls();
             setTimeout(() => {
                 document.getElementById("winMsg").textContent = "错误次数过多，游戏结束";
                 document.getElementById("winOverlay").querySelector("h2").textContent = "😵 挑战失败";
@@ -438,8 +531,10 @@ function checkWin() {
         }
     }
     gameActive = false;
+    sdkPlayPaused = false;
+    sdkLocked = true;
     stopTimer();
-    const elapsed = Date.now() - startTime;
+    const elapsed = getSdkElapsedMs();
     const m = Math.floor(elapsed / 60000);
     const s = Math.floor((elapsed % 60000) / 1000);
     document.getElementById("winOverlay").querySelector("h2").textContent = "🎉 恭喜完成!";
@@ -447,12 +542,19 @@ function checkWin() {
         "用时 " + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0") +
         " | 难度: " + { easy: "简单", medium: "中等", hard: "困难" }[difficulty];
     document.getElementById("winOverlay").classList.add("active");
+    updateSdkControls();
+}
+
+function getSdkElapsedMs() {
+    if (sdkTimerTicking) return sdkTimeOffsetMs + (Date.now() - startTime);
+    return sdkTimeOffsetMs;
 }
 
 function startTimer() {
     startTime = Date.now();
+    sdkTimerTicking = true;
     timerHandle = setInterval(() => {
-        const elapsed = Date.now() - startTime;
+        const elapsed = getSdkElapsedMs();
         const m = Math.floor(elapsed / 60000);
         const s = Math.floor((elapsed % 60000) / 1000);
         document.getElementById("timerDisplay").textContent =
@@ -462,6 +564,82 @@ function startTimer() {
 
 function stopTimer() {
     clearInterval(timerHandle);
+    timerHandle = null;
+    if (sdkTimerTicking) {
+        sdkTimeOffsetMs += Date.now() - startTime;
+        sdkTimerTicking = false;
+    }
+}
+
+function resetSdkTimer() {
+    stopTimer();
+    sdkTimeOffsetMs = 0;
+    sdkTimerTicking = false;
+    document.getElementById("timerDisplay").textContent = "⏱ 00:00";
+}
+
+function updateSdkControls() {
+    const s = document.getElementById("sdkBtnStart");
+    const p = document.getElementById("sdkBtnPause");
+    if (!s || !p) return;
+    if (sdkLocked) {
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+        return;
+    }
+    const idle = !gameActive && !sdkPlayPaused;
+    const playing = gameActive && !sdkPlayPaused;
+    const pz = !gameActive && sdkPlayPaused;
+    if (idle) {
+        s.disabled = false;
+        s.textContent = "开始游戏";
+        s.classList.add("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+    } else if (pz) {
+        s.disabled = false;
+        s.textContent = "继续";
+        s.classList.add("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+    } else if (playing) {
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = false;
+        p.textContent = "暂停";
+    } else {
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+    }
+}
+
+function sdkBeginOrResume() {
+    if (sdkLocked) return;
+    if (sdkPlayPaused) {
+        sdkPlayPaused = false;
+        gameActive = true;
+        startTimer();
+    } else if (!gameActive) {
+        gameActive = true;
+        sdkPlayPaused = false;
+        startTimer();
+    }
+    updateSdkControls();
+}
+
+function sdkPause() {
+    if (sdkLocked || !gameActive || sdkPlayPaused) return;
+    sdkPlayPaused = true;
+    gameActive = false;
+    stopTimer();
+    updateSdkControls();
 }
 
 function setDifficulty(diff, el) {
@@ -472,11 +650,13 @@ function setDifficulty(diff, el) {
 }
 
 function newGame() {
-    stopTimer();
+    resetSdkTimer();
     errors = 0;
     hints = 3;
     selectedCell = -1;
-    gameActive = true;
+    gameActive = false;
+    sdkPlayPaused = false;
+    sdkLocked = false;
     document.getElementById("errorCount").textContent = "❌ 0/" + maxErrors;
     document.getElementById("hintCount").textContent = "3";
     document.getElementById("hintBtn").disabled = false;
@@ -488,10 +668,17 @@ function newGame() {
 
     renderGrid();
     renderNumpad();
-    startTimer();
+    updateSdkControls();
 }
 
 document.addEventListener("keydown", (event) => {
+    if (event.code === "KeyP" && !event.repeat) {
+        event.preventDefault();
+        if (sdkLocked) return;
+        if (gameActive && !sdkPlayPaused) sdkPause();
+        else if (sdkPlayPaused) sdkBeginOrResume();
+        return;
+    }
     if (!gameActive) return;
     const num = parseInt(event.key, 10);
     if (num >= 1 && num <= 9) {
@@ -511,6 +698,8 @@ document.addEventListener("keydown", (event) => {
     else if (event.key === "ArrowDown" && r < 8) { selectedCell = (r + 1) * 9 + c; renderGrid(); }
 });
 
+document.getElementById("sdkBtnStart").addEventListener("click", sdkBeginOrResume);
+document.getElementById("sdkBtnPause").addEventListener("click", sdkPause);
 window.GamePortalAuth.init({ mountId: "userArea", gameKey: "sudoku" });
 newGame();
 </script>

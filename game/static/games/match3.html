@@ -187,6 +187,7 @@
         <button class="hdr-btn" onclick="goBack()">返回大厅</button>
         <div class="timer" id="timer">⏱ 00:00</div>
         <button class="hdr-btn" onclick="showLeaderboard()">🏆</button>
+        <button type="button" class="game-help-trigger" data-game-help-open aria-label="攻略与操作">攻略</button>
         <div id="userArea"></div>
     </div>
 </div>
@@ -196,6 +197,10 @@
 </div>
 
 <div class="bottom-area">
+    <div class="gameplay-control-bar" style="max-width:560px;padding-top:0;padding-bottom:10px;">
+        <button type="button" class="gameplay-btn gameplay-btn-primary" id="m3BtnStart">开始游戏</button>
+        <button type="button" class="gameplay-btn" id="m3BtnPause" disabled>暂停</button>
+    </div>
     <div class="slot-bar" id="slotBar"></div>
     <div class="tools">
         <button class="tool-btn" id="btnUndo" onclick="useUndo()">↩️ 撤回 <span class="badge" id="undoCount">3</span></button>
@@ -242,7 +247,22 @@
     </div>
 </div>
 
+<div class="game-help-overlay" id="gameHelpOverlay" hidden aria-hidden="true">
+    <div class="game-help-panel" role="dialog" aria-modal="true" aria-labelledby="gameHelpTitle" tabindex="-1">
+        <button type="button" class="game-help-close" data-game-help-close aria-label="关闭">&times;</button>
+        <h2 id="gameHelpTitle" class="game-help-title">攻略与操作</h2>
+        <div class="game-help-content">
+            <p><strong>开始与暂停：</strong>进入页面后先点<strong>开始游戏</strong>再计时；对局中可用<strong>暂停</strong> / 左侧「继续」随时继续。</p>
+            <p><strong>目标：</strong>从叠放的牌中点击选牌，牌会进入下方槽位；槽位里出现<strong>三张相同图案</strong>即消除。</p>
+            <p><strong>操作：</strong>点选场上任意未被压住的牌。下方槽位最多 <strong>7</strong> 格，满了且无法三消则本局结束。</p>
+            <p><strong>道具：</strong>撤回（收回上一张）、洗牌（重排场上）、移出（从槽位拿出一张暂存），次数有限，留到僵局再用。</p>
+            <p><strong>技巧：</strong>优先消掉上层露出的牌，避免槽位被单张占满；留意计时，尽量连续消除。</p>
+        </div>
+    </div>
+</div>
+
 <script src="/js/common/auth.js"></script>
+<script src="/js/common/game-help.js"></script>
 <script>
 const CARD_TYPES = ["🍎", "🍊", "🍋", "🍇", "🍓", "🍑", "🥝", "🍌", "🍉", "🫐", "🌽", "🍄"];
 const CARD_W = 58, CARD_H = 58, GAP = 4, CELL = CARD_W + GAP, LAYER_OFF = 26, MAX_SLOT = 7;
@@ -252,6 +272,7 @@ const medals = ["🥇", "🥈", "🥉"];
 let cards = [], slot = [], undoStack = [];
 let undoLeft = 3, shuffleLeft = 1, moveOutLeft = 1;
 let timerHandle = null, startTime = 0, gameActive = false, animLock = false;
+let m3TimeOffsetMs = 0, m3TimerTicking = false, m3PlayPaused = false;
 let pendingScoreMs = null;
 let audioCtx = null;
 
@@ -297,7 +318,11 @@ function fmtMs(ms) {
     const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000), cs = Math.floor((ms % 1000) / 10);
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
 }
-function fmtTime() { return fmtMs(Date.now() - startTime); }
+function getM3ElapsedMs() {
+    if (m3TimerTicking) return m3TimeOffsetMs + (Date.now() - startTime);
+    return m3TimeOffsetMs;
+}
+function fmtTime() { return fmtMs(getM3ElapsedMs()); }
 
 function genCards() {
     const total = LAYERS_DEF.reduce((sum, layer) => sum + layer.rows * layer.cols, 0);
@@ -468,14 +493,27 @@ function useMoveOut() {
 }
 function startTimer() {
     startTime = Date.now();
+    m3TimerTicking = true;
     timerHandle = setInterval(() => {
-        const ms = Date.now() - startTime;
+        const ms = getM3ElapsedMs();
         const m = Math.floor(ms / 60000);
         const s = Math.floor((ms % 60000) / 1000);
         document.getElementById("timer").textContent = `⏱ ${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
     }, 500);
 }
-function stopTimer() { clearInterval(timerHandle); }
+function stopTimer() {
+    clearInterval(timerHandle);
+    if (m3TimerTicking) {
+        m3TimeOffsetMs += Date.now() - startTime;
+        m3TimerTicking = false;
+    }
+}
+function resetM3Timer() {
+    stopTimer();
+    m3TimeOffsetMs = 0;
+    m3TimerTicking = false;
+    document.getElementById("timer").textContent = "⏱ 00:00";
+}
 async function submitScore(ms) {
     try {
         const data = await GamePortalAuth.api("/api/game/match3/score", {
@@ -495,11 +533,12 @@ function updateWinRank(rank) {
 }
 async function gameWin() {
     gameActive = false;
+    m3PlayPaused = false;
     stopTimer();
     sfxWin();
     spawnConfetti();
-    const ms = Date.now() - startTime;
-    document.getElementById("winText").textContent = "用时 " + fmtTime();
+    const ms = getM3ElapsedMs();
+    document.getElementById("winText").textContent = "用时 " + fmtMs(ms);
     document.getElementById("winRank").style.display = "none";
     if (GamePortalAuth.getCurrentUser()) {
         document.getElementById("winLoginHint").style.display = "none";
@@ -509,12 +548,15 @@ async function gameWin() {
         document.getElementById("winLoginHint").style.display = "block";
     }
     document.getElementById("winOverlay").classList.add("active");
+    updateM3Controls();
 }
 function gameLose() {
     gameActive = false;
+    m3PlayPaused = false;
     stopTimer();
     sfxLose();
     document.getElementById("loseOverlay").classList.add("active");
+    updateM3Controls();
 }
 function spawnConfetti() {
     const colors = ["#ff6b6b", "#ffd93d", "#6bcb77", "#4d96ff", "#ff6eb4", "#a66cff", "#ffd200", "#f7971e"];
@@ -551,23 +593,84 @@ function resetPowers() {
     document.getElementById("btnShuffle").disabled = false;
     document.getElementById("btnMoveOut").disabled = false;
 }
-function initGame() {
+function updateM3Controls() {
+    const s = document.getElementById("m3BtnStart");
+    const p = document.getElementById("m3BtnPause");
+    if (!s || !p) return;
+    const idle = !gameActive && !m3PlayPaused;
+    const playing = gameActive && !m3PlayPaused;
+    const pz = !gameActive && m3PlayPaused;
+    if (idle) {
+        s.disabled = false;
+        s.textContent = "开始游戏";
+        s.classList.add("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+    } else if (pz) {
+        s.disabled = false;
+        s.textContent = "继续";
+        s.classList.add("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+    } else if (playing) {
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = false;
+        p.textContent = "暂停";
+    } else {
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+    }
+}
+function prepareBoard() {
     slot = [];
     undoStack = [];
     animLock = false;
     pendingScoreMs = null;
+    gameActive = false;
+    m3PlayPaused = false;
+    resetM3Timer();
     resetPowers();
     genCards();
     renderBoard();
     renderSlot();
+    updateM3Controls();
+}
+function startM3Session() {
     gameActive = true;
+    m3PlayPaused = false;
     startTimer();
+    updateM3Controls();
+}
+function m3BeginOrResume() {
+    if (m3PlayPaused) {
+        m3PlayPaused = false;
+        gameActive = true;
+        startTimer();
+    } else if (!gameActive) {
+        startM3Session();
+    }
+    updateM3Controls();
+}
+function m3Pause() {
+    if (!gameActive || m3PlayPaused) return;
+    m3PlayPaused = true;
+    gameActive = false;
+    stopTimer();
+    updateM3Controls();
+}
+function initGame() {
+    prepareBoard();
+    startM3Session();
 }
 function restartGame() {
     document.getElementById("winOverlay").classList.remove("active");
     document.getElementById("loseOverlay").classList.remove("active");
     document.querySelectorAll(".confetti-piece").forEach((node) => node.remove());
-    stopTimer();
     initGame();
 }
 function showAuthFromWin() {
@@ -607,8 +710,10 @@ function renderLeaderboard(list) {
     }).join("");
 }
 
+document.getElementById("m3BtnStart").addEventListener("click", m3BeginOrResume);
+document.getElementById("m3BtnPause").addEventListener("click", m3Pause);
 window.GamePortalAuth.init({ mountId: "userArea", gameKey: "match3" });
-initGame();
+prepareBoard();
 </script>
 </body>
 </html>

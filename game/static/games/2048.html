@@ -98,10 +98,12 @@
         .bottom-bar {
             width: 100%;
             max-width: 480px;
-            padding: 14px 16px 24px;
+            padding: 10px 16px 22px;
             display: flex;
+            flex-wrap: wrap;
             justify-content: center;
-            gap: 10px;
+            align-items: center;
+            gap: 8px 10px;
         }
         .action-btn {
             padding: 10px 24px;
@@ -139,6 +141,7 @@
     <div class="title">🔢 数字冲冲冲</div>
     <div class="header-right">
         <button class="hdr-btn" onclick="location.href='/'">返回大厅</button>
+        <button type="button" class="game-help-trigger" data-game-help-open aria-label="攻略与操作">攻略</button>
         <div id="userArea"></div>
     </div>
 </div>
@@ -166,10 +169,26 @@
 </div>
 
 <div class="bottom-bar">
-    <button class="action-btn" onclick="newGame()">新游戏</button>
+    <button type="button" class="gameplay-btn gameplay-btn-primary" id="e48BtnStart">开始游戏</button>
+    <button type="button" class="gameplay-btn" id="e48BtnPause" disabled>暂停</button>
+    <button type="button" class="gameplay-btn" onclick="newGame()">新游戏</button>
+</div>
+
+<div class="game-help-overlay" id="gameHelpOverlay" hidden aria-hidden="true">
+    <div class="game-help-panel" role="dialog" aria-modal="true" aria-labelledby="gameHelpTitle" tabindex="-1">
+        <button type="button" class="game-help-close" data-game-help-close aria-label="关闭">&times;</button>
+        <h2 id="gameHelpTitle" class="game-help-title">攻略与操作</h2>
+        <div class="game-help-content">
+            <p><strong>规则：</strong>在 4×4 格中滑动，相同数字的方块会<strong>合并成它们的和</strong>（如 2+2→4）。每次移动后会随机出现新方块（多为 2）。</p>
+            <p><strong>开始与暂停：</strong>点<strong>开始游戏</strong>后才能滑动或方向键合并；<strong>暂停</strong>可冻结操作，键盘 <strong>P</strong> 也可切换暂停 / 继续。</p>
+            <p><strong>操作：</strong>键盘 <strong>方向键</strong>上下左右；手机上在棋盘上<strong>滑动</strong>对应方向。</p>
+            <p><strong>技巧：</strong>尽量把大数字固定在一角（如左下），按单调方向堆叠；避免最高块被小数字包围动不了。</p>
+        </div>
+    </div>
 </div>
 
 <script src="/js/common/auth.js"></script>
+<script src="/js/common/game-help.js"></script>
 <script>
 const SIZE = 4;
 const GAP = 8;
@@ -199,6 +218,8 @@ let gameOver = false;
 let won = false;
 let keepPlaying = false;
 let tileId = 0;
+let sessionStarted = false;
+let playPaused = false;
 
 function initGridBg() {
     const bg = document.getElementById("gridBg");
@@ -388,8 +409,72 @@ function setPositions() {
     }
 }
 
+function canPlay2048() {
+    if (!sessionStarted || playPaused || gameOver) return false;
+    if (won && !keepPlaying) return false;
+    return true;
+}
+
+function update2048Controls() {
+    const s = document.getElementById("e48BtnStart");
+    const p = document.getElementById("e48BtnPause");
+    if (!s || !p) return;
+    const idle = !sessionStarted && !playPaused && !gameOver && !won;
+    const playing = sessionStarted && !playPaused && !gameOver && !won;
+    const pz = playPaused && !gameOver && !won;
+    if (gameOver || won) {
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+        return;
+    }
+    if (pz) {
+        s.disabled = false;
+        s.textContent = "继续";
+        s.classList.add("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+        return;
+    }
+    if (playing) {
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = false;
+        p.textContent = "暂停";
+        return;
+    }
+    if (idle) {
+        s.disabled = false;
+        s.textContent = "开始游戏";
+        s.classList.add("gameplay-btn-primary");
+        p.disabled = true;
+        p.textContent = "暂停";
+    }
+}
+
+function e48BeginOrResume() {
+    if (gameOver || won) return;
+    if (playPaused) {
+        playPaused = false;
+        sessionStarted = true;
+    } else if (!sessionStarted) {
+        sessionStarted = true;
+        playPaused = false;
+    }
+    update2048Controls();
+}
+
+function e48Pause() {
+    if (!sessionStarted || playPaused || gameOver || won) return;
+    playPaused = true;
+    update2048Controls();
+}
+
 function move(direction) {
-    if (gameOver) return;
+    if (!canPlay2048()) return;
     clearTileFlags();
     let moved = false;
     if (direction === "left") moved = moveLeft();
@@ -423,6 +508,7 @@ function move(direction) {
 function showMsg(text) {
     document.getElementById("msgTitle").textContent = text;
     document.getElementById("gameMsg").classList.add("active");
+    update2048Controls();
 }
 
 function newGame() {
@@ -432,14 +518,24 @@ function newGame() {
     won = false;
     keepPlaying = false;
     tileId = 0;
+    sessionStarted = false;
+    playPaused = false;
     document.getElementById("gameMsg").classList.remove("active");
     addRandomTile();
     addRandomTile();
     setPositions();
     renderTiles();
+    update2048Controls();
 }
 
 document.addEventListener("keydown", (event) => {
+    if (event.code === "KeyP" && !event.repeat) {
+        event.preventDefault();
+        if (gameOver) return;
+        if (playPaused) e48BeginOrResume();
+        else e48Pause();
+        return;
+    }
     const map = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
     if (map[event.key]) {
         event.preventDefault();
@@ -450,11 +546,13 @@ document.addEventListener("keydown", (event) => {
 let touchStartX = 0, touchStartY = 0;
 const container = document.getElementById("gridContainer");
 container.addEventListener("touchstart", (event) => {
+    if (!canPlay2048()) return;
     const touch = event.touches[0];
     touchStartX = touch.clientX;
     touchStartY = touch.clientY;
 }, { passive: true });
 container.addEventListener("touchend", (event) => {
+    if (!canPlay2048()) return;
     const touch = event.changedTouches[0];
     const dx = touch.clientX - touchStartX;
     const dy = touch.clientY - touchStartY;
@@ -468,6 +566,8 @@ container.addEventListener("touchend", (event) => {
     }
 });
 
+document.getElementById("e48BtnStart").addEventListener("click", e48BeginOrResume);
+document.getElementById("e48BtnPause").addEventListener("click", e48Pause);
 window.GamePortalAuth.init({ mountId: "userArea", gameKey: "2048" });
 initGridBg();
 newGame();

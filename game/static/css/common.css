@@ -226,3 +226,148 @@
 }
 .toast-success { background: rgba(107, 203, 119, 0.95); }
 .toast-error { background: rgba(238, 90, 36, 0.95); }
+
+/* 游戏页：顶栏「攻略」胶囊按钮，与 hdr-btn 同系浅色描边 */
+.game-help-trigger {
+    padding: 6px 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+.game-help-trigger:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #fff;
+}
+.game-help-trigger:active {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.game-help-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) 16px 16px;
+    box-sizing: border-box;
+    background: rgba(6, 10, 22, 0.38);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+.game-help-overlay[hidden] {
+    display: none !important;
+}
+
+.game-help-panel {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    max-height: min(82vh, 560px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-radius: 20px;
+    background: rgba(30, 34, 52, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow:
+        0 28px 80px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.game-help-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+    transition: background 0.15s, color 0.15s;
+}
+.game-help-close:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+}
+.game-help-title {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 22px 48px 12px 22px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.game-help-content {
+    padding: 14px 22px 22px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: 14px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.75);
+}
+.game-help-content p { margin: 0 0 10px; }
+.game-help-content p:last-child { margin-bottom: 0; }
+.game-help-content strong { color: rgba(255, 255, 255, 0.95); }
+
+/* 游戏页：开始 / 暂停 控制条（与顶栏胶囊风格一致） */
+.gameplay-control-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 10px;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 8px 16px 14px;
+    box-sizing: border-box;
+}
+.gameplay-btn {
+    padding: 8px 18px;
+    min-height: 38px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+}
+.gameplay-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+}
+.gameplay-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+.gameplay-btn-primary {
+    background: linear-gradient(135deg, rgba(255, 210, 0, 0.45), rgba(247, 151, 30, 0.35));
+    border-color: rgba(255, 210, 0, 0.52);
+    color: #1a1528;
+}
+.gameplay-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(255, 210, 0, 0.58), rgba(247, 151, 30, 0.45));
+}

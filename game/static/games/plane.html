@@ -41,11 +41,13 @@
         .game-wrap {
             flex: 1;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             width: 100%;
-            padding: 4px 8px 16px;
+            padding: 4px 8px 10px;
             min-height: 0;
+            gap: 10px;
         }
         #cv {
             display: block;
@@ -54,12 +56,6 @@
             box-shadow: 0 0 40px rgba(80, 120, 255, 0.15);
             background: linear-gradient(180deg, #0d1535 0%, #1a0f30 100%);
             max-width: 100%;
-        }
-        .hint {
-            text-align: center;
-            font-size: 11px;
-            color: rgba(255,255,255,0.4);
-            padding: 0 12px 10px;
         }
         .overlay-msg {
             position: fixed;
@@ -90,21 +86,42 @@
         <span class="stat">分 <strong id="score">0</strong></span>
         <span class="stat">生命 <strong id="lives">3</strong></span>
         <button class="hdr-btn" onclick="location.href='/'">大厅</button>
+        <button type="button" class="game-help-trigger" data-game-help-open aria-label="攻略与操作">攻略</button>
         <div id="userArea"></div>
     </div>
 </div>
+
 <div class="game-wrap">
     <canvas id="cv" width="360" height="520"></canvas>
+    <div class="gameplay-control-bar" style="max-width:480px;padding-bottom:8px;">
+        <button type="button" class="gameplay-btn gameplay-btn-primary" id="planeBtnStart">开始游戏</button>
+        <button type="button" class="gameplay-btn" id="planeBtnPause" disabled>暂停</button>
+        <button type="button" class="gameplay-btn" id="planeBtnNew">新局</button>
+    </div>
 </div>
-<p class="hint">← → 移动 · 空格发射 · 手机拖动飞机、松手连发</p>
 <div class="overlay-msg" id="overLay">
     <div class="msg-box">
         <h2 id="overTitle">游戏结束</h2>
         <p id="overText"></p>
-        <button class="btn btn-primary" onclick="startGame()">再来一局</button>
+        <button class="btn btn-primary" onclick="planeRestartFromOver()">再来一局</button>
     </div>
 </div>
+
+<div class="game-help-overlay" id="gameHelpOverlay" hidden aria-hidden="true">
+    <div class="game-help-panel" role="dialog" aria-modal="true" aria-labelledby="gameHelpTitle" tabindex="-1">
+        <button type="button" class="game-help-close" data-game-help-close aria-label="关闭">&times;</button>
+        <h2 id="gameHelpTitle" class="game-help-title">攻略与操作</h2>
+        <div class="game-help-content">
+            <p><strong>开始与暂停：</strong>先点<strong>开始游戏</strong>再开战；对局中点<strong>暂停</strong>或按 <strong>P</strong> 冻结画面（空格仍用于发射）。</p>
+            <p><strong>键盘：</strong>← → 移动战机，<strong>空格</strong>发射子弹。</p>
+            <p><strong>触屏：</strong>单指拖动飞机位置，松手后会<strong>连续射击</strong>；注意躲避敌弹与撞击。</p>
+            <p><strong>攻略：</strong>优先打掉离得近的敌机；左右拉开距离清场；共 3 条命，尽量别和敌机「贴脸」。</p>
+        </div>
+    </div>
+</div>
+
 <script src="/js/common/auth.js"></script>
+<script src="/js/common/game-help.js"></script>
 <script>
 (function () {
     const canvas = document.getElementById("cv");
@@ -113,7 +130,8 @@
     let dpr = 1;
 
     let player, bullets, enemies, particles;
-    let score, lives, frame, spawnEvery, running, rafId;
+    let score, lives, frame, spawnEvery, rafId;
+    let alive, started, paused;
     let keys = {};
     let touchX = null, fireCooldown = 0, touchHeld = false;
 
@@ -140,7 +158,9 @@
         lives = 3;
         frame = 0;
         spawnEvery = 55;
-        running = true;
+        alive = true;
+        started = false;
+        paused = false;
         fireCooldown = 0;
         document.getElementById("score").textContent = "0";
         document.getElementById("lives").textContent = "3";
@@ -227,7 +247,7 @@
     }
 
     function update() {
-        if (!running) return;
+        if (!alive || !started || paused) return;
         frame++;
         fireCooldown = Math.max(0, fireCooldown - 1);
 
@@ -287,10 +307,13 @@
         });
 
         if (lives <= 0) {
-            running = false;
+            alive = false;
+            started = false;
+            paused = false;
             document.getElementById("overTitle").textContent = "战机被击毁";
             document.getElementById("overText").textContent = "最终得分 " + score;
             document.getElementById("overLay").classList.add("on");
+            updatePlaneControls();
             return;
         }
 
@@ -305,25 +328,91 @@
     function loop() {
         update();
         draw();
-        if (running) rafId = requestAnimationFrame(loop);
+        rafId = requestAnimationFrame(loop);
     }
 
-    window.startGame = function () {
+    function updatePlaneControls() {
+        var s = document.getElementById("planeBtnStart");
+        var p = document.getElementById("planeBtnPause");
+        if (!s || !p) return;
+        if (!alive) {
+            s.disabled = true;
+            s.textContent = "开始游戏";
+            s.classList.remove("gameplay-btn-primary");
+            p.disabled = true;
+            p.textContent = "暂停";
+            return;
+        }
+        if (!started) {
+            s.disabled = false;
+            s.textContent = "开始游戏";
+            s.classList.add("gameplay-btn-primary");
+            p.disabled = true;
+            p.textContent = "暂停";
+            return;
+        }
+        if (paused) {
+            s.disabled = false;
+            s.textContent = "继续";
+            s.classList.add("gameplay-btn-primary");
+            p.disabled = true;
+            p.textContent = "暂停";
+            return;
+        }
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = false;
+        p.textContent = "暂停";
+    }
+
+    function planeBeginOrResume() {
+        if (!alive) return;
+        if (paused) paused = false;
+        else if (!started) started = true;
+        updatePlaneControls();
+    }
+
+    function planePause() {
+        if (!alive || !started || paused) return;
+        paused = true;
+        updatePlaneControls();
+    }
+
+    function planeNewRound() {
+        document.getElementById("overLay").classList.remove("on");
         resize();
         reset();
         cancelAnimationFrame(rafId);
-        ctx.fillStyle = "#0d1535";
-        ctx.fillRect(0, 0, W, H);
+        draw();
         rafId = requestAnimationFrame(loop);
-    };
+        updatePlaneControls();
+    }
+
+    function planeRestartFromOver() {
+        planeNewRound();
+        planeBeginOrResume();
+    }
+
+    document.getElementById("planeBtnStart").addEventListener("click", planeBeginOrResume);
+    document.getElementById("planeBtnPause").addEventListener("click", planePause);
+    document.getElementById("planeBtnNew").addEventListener("click", planeNewRound);
 
     document.addEventListener("keydown", function (e) {
+        if (e.code === "KeyP") {
+            e.preventDefault();
+            if (e.repeat) return;
+            if (!alive || !started) return;
+            if (paused) planeBeginOrResume();
+            else planePause();
+            return;
+        }
         if (e.code === "Space") {
             keys["Space"] = true;
             e.preventDefault();
-        } else {
-            keys[e.key] = true;
+            return;
         }
+        keys[e.key] = true;
     });
     document.addEventListener("keyup", function (e) {
         if (e.code === "Space") keys["Space"] = false;
@@ -364,13 +453,14 @@
     canvas.addEventListener("touchcancel", endTouch);
 
     window.addEventListener("resize", function () {
-        if (running) {
-            resize();
-        }
+        resize();
     });
 
     window.GamePortalAuth.init({ mountId: "userArea", gameKey: "plane" });
-    startGame();
+    resize();
+    reset();
+    rafId = requestAnimationFrame(loop);
+    updatePlaneControls();
 })();
 </script>
 </body>

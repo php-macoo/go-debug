@@ -54,27 +54,6 @@
             max-width: 100%;
             height: auto;
         }
-        .hint {
-            margin-top: 10px;
-            font-size: 12px;
-            color: rgba(255,255,255,0.45);
-            text-align: center;
-            max-width: 360px;
-        }
-        .btns {
-            display: flex;
-            gap: 10px;
-            margin-top: 12px;
-        }
-        .btn2 {
-            padding: 8px 20px;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.1);
-            color: #fff;
-            font-size: 14px;
-            cursor: pointer;
-        }
         .overlay-msg {
             position: fixed;
             inset: 0;
@@ -103,24 +82,42 @@
     <div class="header-right">
         <span class="stat">得分 <strong id="score">0</strong></span>
         <button class="hdr-btn" onclick="location.href='/'">返回大厅</button>
+        <button type="button" class="game-help-trigger" data-game-help-open aria-label="攻略与操作">攻略</button>
         <div id="userArea"></div>
     </div>
 </div>
+
 <div class="wrap">
     <canvas id="cv" width="360" height="360"></canvas>
-    <p class="hint">方向键或滑动屏幕控制 · 空格暂停</p>
-    <div class="btns">
-        <button class="btn2" onclick="startGame()">新游戏</button>
+    <div class="gameplay-control-bar">
+        <button type="button" class="gameplay-btn gameplay-btn-primary" id="snakeBtnStart">开始游戏</button>
+        <button type="button" class="gameplay-btn" id="snakeBtnPause" disabled>暂停</button>
+        <button type="button" class="gameplay-btn" id="snakeBtnNew">新局</button>
     </div>
 </div>
 <div class="overlay-msg" id="overLay">
     <div class="msg-box">
         <h2 id="overTitle">游戏结束</h2>
         <p id="overText"></p>
-        <button class="btn btn-primary" onclick="startGame()">再来一局</button>
+        <button class="btn btn-primary" onclick="snakeRestartFromOver()">再来一局</button>
     </div>
 </div>
+
+<div class="game-help-overlay" id="gameHelpOverlay" hidden aria-hidden="true">
+    <div class="game-help-panel" role="dialog" aria-modal="true" aria-labelledby="gameHelpTitle" tabindex="-1">
+        <button type="button" class="game-help-close" data-game-help-close aria-label="关闭">&times;</button>
+        <h2 id="gameHelpTitle" class="game-help-title">攻略与操作</h2>
+        <div class="game-help-content">
+            <p><strong>目标：</strong>控制蛇吃食物变长，<strong>不要撞墙或咬到自己</strong>。</p>
+            <p><strong>开始与暂停：</strong>先点<strong>开始游戏</strong>再移动吃豆；对局中<strong>空格</strong>或<strong>暂停</strong>按钮可暂停，点<strong>继续</strong>恢复。</p>
+            <p><strong>操作：</strong><strong>方向键</strong>转向；在画布上<strong>滑动</strong>也可控制方向。</p>
+            <p><strong>技巧：</strong>留出走位空间，蛇身越长越要提前规划转弯；别在窄缝里掉头。</p>
+        </div>
+    </div>
+</div>
+
 <script src="/js/common/auth.js"></script>
+<script src="/js/common/game-help.js"></script>
 <script>
 (function () {
     const COLS = 18, ROWS = 18;
@@ -129,7 +126,8 @@
     let cell = 20;
     let dpr = 1;
 
-    let snake, dir, nextDir, food, tickMs, loopId, running, paused;
+    let snake, dir, nextDir, food, tickMs, loopId;
+    let alive, started, paused;
     let touchStart = null;
 
     function resize() {
@@ -160,7 +158,8 @@
         nextDir = { x: 1, y: 0 };
         tickMs = 140;
         randFood();
-        running = true;
+        alive = true;
+        started = false;
         paused = false;
         document.getElementById("score").textContent = "0";
         document.getElementById("overLay").classList.remove("on");
@@ -203,7 +202,7 @@
     }
 
     function step() {
-        if (!running || paused) return;
+        if (!alive || !started || paused) return;
         dir = nextDir;
         var head = snake[0];
         var nx = head.x + dir.x, ny = head.y + dir.y;
@@ -233,32 +232,103 @@
     }
 
     function gameOver(msg) {
-        running = false;
+        alive = false;
+        started = false;
+        paused = false;
         clearInterval(loopId);
         document.getElementById("overTitle").textContent = "游戏结束";
         document.getElementById("overText").textContent = msg + " · 得分 " + document.getElementById("score").textContent;
         document.getElementById("overLay").classList.add("on");
+        updateSnakeControls();
     }
 
     function setDir(dx, dy) {
-        if (!running || paused) return;
+        if (!alive || !started || paused) return;
         if (dir.x === -dx && dir.y === -dy) return;
         nextDir = { x: dx, y: dy };
     }
 
-    window.startGame = function () {
+    function updateSnakeControls() {
+        var s = document.getElementById("snakeBtnStart");
+        var p = document.getElementById("snakeBtnPause");
+        if (!s || !p) return;
+        if (!alive) {
+            s.disabled = true;
+            s.textContent = "开始游戏";
+            s.classList.remove("gameplay-btn-primary");
+            p.disabled = true;
+            p.textContent = "暂停";
+            return;
+        }
+        if (!started) {
+            s.disabled = false;
+            s.textContent = "开始游戏";
+            s.classList.add("gameplay-btn-primary");
+            p.disabled = true;
+            p.textContent = "暂停";
+            return;
+        }
+        if (paused) {
+            s.disabled = false;
+            s.textContent = "继续";
+            s.classList.add("gameplay-btn-primary");
+            p.disabled = true;
+            p.textContent = "暂停";
+            return;
+        }
+        s.disabled = true;
+        s.textContent = "开始游戏";
+        s.classList.remove("gameplay-btn-primary");
+        p.disabled = false;
+        p.textContent = "暂停";
+    }
+
+    function snakeBeginOrResume() {
+        if (!alive) return;
+        if (paused) {
+            paused = false;
+            clearInterval(loopId);
+            loopId = setInterval(step, tickMs);
+        } else if (!started) {
+            started = true;
+            paused = false;
+            clearInterval(loopId);
+            loopId = setInterval(step, tickMs);
+        }
+        updateSnakeControls();
+    }
+
+    function snakePause() {
+        if (!alive || !started || paused) return;
+        paused = true;
+        clearInterval(loopId);
+        updateSnakeControls();
+    }
+
+    function snakeNewRound() {
+        document.getElementById("overLay").classList.remove("on");
         resize();
         reset();
         clearInterval(loopId);
         draw();
-        loopId = setInterval(step, tickMs);
-    };
+        updateSnakeControls();
+    }
+
+    function snakeRestartFromOver() {
+        snakeNewRound();
+        snakeBeginOrResume();
+    }
+
+    document.getElementById("snakeBtnStart").addEventListener("click", snakeBeginOrResume);
+    document.getElementById("snakeBtnPause").addEventListener("click", snakePause);
+    document.getElementById("snakeBtnNew").addEventListener("click", snakeNewRound);
 
     document.addEventListener("keydown", function (e) {
         if (e.code === "Space") {
             e.preventDefault();
-            if (!running) return;
-            paused = !paused;
+            if (!alive || !started) return;
+            if (paused) snakeBeginOrResume();
+            else snakePause();
             return;
         }
         var m = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
@@ -283,14 +353,14 @@
     });
 
     window.addEventListener("resize", function () {
-        if (running) {
+        if (alive) {
             resize();
             draw();
         }
     });
 
     window.GamePortalAuth.init({ mountId: "userArea", gameKey: "snake" });
-    startGame();
+    snakeNewRound();
 })();
 </script>
 </body>
