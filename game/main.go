@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 
@@ -14,7 +15,10 @@ import (
 )
 
 func main() {
-	cfg := config.MustLoad("game/config.yaml")
+	configPath := flag.String("config", "game/config.yaml", "YAML 配置文件路径（相对当前工作目录或绝对路径）")
+	flag.Parse()
+	log.Printf("加载配置: %s", *configPath)
+	cfg := config.MustLoad(*configPath)
 
 	db, err := dao.InitDB(cfg.Database)
 	if err != nil {

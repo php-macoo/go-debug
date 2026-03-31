@@ -1,0 +1,16 @@
+# 仅启动应用；数据库请自备并已执行 game/script/sql/schema.sql
+# 仓库根目录：bash game/script/docker-deploy.sh up
+services:
+  app:
+    build:
+      context: .
+      dockerfile: game/docker/Dockerfile
+    environment:
+      GIN_MODE: release
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./game/docker/config.docker.yaml:/config/config.yaml:ro
+    # 数据库在宿主机时（Linux）便于解析 host.docker.internal；云库可忽略
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

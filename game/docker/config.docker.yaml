@@ -1,0 +1,43 @@
+# 挂载为 /config/config.yaml；请按实际数据库地址修改 database 段（本文件不含 MySQL 容器）
+# 库表需已在目标库执行 game/script/sql/schema.sql
+
+server:
+  addr: ":8082"
+  static_dir: "game/static"
+
+database:
+  # 示例：MySQL 在宿主机 → host.docker.internal；云 RDS/内网 → 改为真实主机名或 IP
+  host: "host.docker.internal"
+  port: "3306"
+  user: "root"
+  password: "your_password"
+  name: "game_db"
+  max_open_conns: 20
+  max_idle_conns: 5
+  log_sql: false
+
+auth:
+  token_secret: "change-me-in-production-docker-secret"
+  token_expire_days: 7
+
+score:
+  submit_min_interval_seconds: 15
+  run_ttl_minutes: 120
+  default_min_completion_time_ms: 8000
+  default_max_completion_time_ms: 7200000
+  games:
+    match3:
+      min_completion_time_ms: 10000
+      max_completion_time_ms: 3600000
+    snake:
+      min_completion_time_ms: 5000
+      max_completion_time_ms: 1800000
+    plane:
+      min_completion_time_ms: 3000
+      max_completion_time_ms: 1800000
+    "2048":
+      min_completion_time_ms: 5000
+      max_completion_time_ms: 7200000
+    sudoku:
+      min_completion_time_ms: 15000
+      max_completion_time_ms: 14400000
