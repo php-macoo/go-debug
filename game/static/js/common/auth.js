@@ -349,6 +349,8 @@
     function init(options) {
         mountId = (options && options.mountId) ? options.mountId : "userArea";
         gameKey = (options && options.gameKey) ? options.gameKey : "";
+        // 未登录时尽早写入匿名设备标识，避免首屏/首个接口竞态导致缺少 X-Guest-Device-Id
+        ensureGuestDeviceId();
         ensureModals();
         updateUserArea();
         checkAuth();
@@ -358,6 +360,10 @@
     window.GamePortalAuth = {
         init: init,
         api: api,
+        /** 未登录时确保本地已生成游客标识（进入游戏页时 init 已调用，一般无需再调） */
+        ensureGuestReady: function () {
+            ensureGuestDeviceId();
+        },
         showAuth: showAuth,
         requireLogin: requireLogin,
         getCurrentUser: function () { return currentUser; },

@@ -41,10 +41,10 @@ func (h *ScoreHandler) StartRun(c *gin.Context) {
 	uid, err := h.playUserID(c)
 	if err != nil {
 		if errors.Is(err, errPlayNeedIdentity) {
-			resp.Fail400(c, "请登录，或由客户端在请求头携带 X-Guest-Device-Id 以匿名游玩")
+			resp.Fail400(c, "请刷新页面后重试，或先登录账号")
 			return
 		}
-		resp.Fail400(c, err.Error())
+		resp.Fail400(c, "暂时无法开始，请稍后重试或登录")
 		return
 	}
 	gameKey := c.Param("gameKey")
@@ -67,10 +67,10 @@ func (h *ScoreHandler) Submit(c *gin.Context) {
 	uid, err := h.playUserID(c)
 	if err != nil {
 		if errors.Is(err, errPlayNeedIdentity) {
-			resp.Fail400(c, "请登录，或由客户端在请求头携带 X-Guest-Device-Id 以匿名游玩")
+			resp.Fail400(c, "请刷新页面后重试，或先登录账号")
 			return
 		}
-		resp.Fail400(c, err.Error())
+		resp.Fail400(c, "暂时无法提交，请稍后重试或登录")
 		return
 	}
 	gameKey := c.Param("gameKey")
@@ -79,7 +79,7 @@ func (h *ScoreHandler) Submit(c *gin.Context) {
 		TimeMs int    `json:"completionTimeMs" binding:"required,gt=0"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		resp.Fail400(c, "请求格式错误：需要 runId 与 completionTimeMs")
+		resp.Fail400(c, "提交内容不正确，请重试")
 		return
 	}
 

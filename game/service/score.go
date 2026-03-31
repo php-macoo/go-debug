@@ -48,7 +48,7 @@ func (s *ScoreService) StartRun(userID int64, gameKey string) (runID string, err
 // Submit 校验 gameKey、对局凭证、上报间隔与完成时间上下限后写入成绩；完成时间取 min(客户端上报, 服务端墙钟) 再夹在配置范围内。
 func (s *ScoreService) Submit(userID int64, gameKey, runID string, clientReportedMs int, ua, ip string) (rank int, err error) {
 	if runID == "" {
-		return 0, &ScoreSubmitError{http.StatusBadRequest, "缺少对局凭证 runId"}
+		return 0, &ScoreSubmitError{http.StatusBadRequest, "服务异常，请重新开始本局"}
 	}
 	if _, err := s.gameDAO.GetOnlineByKey(gameKey); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
